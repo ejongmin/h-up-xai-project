@@ -1,0 +1,15 @@
+[project]
+name = "hup-distress"
+version = "0.1.0"
+description = "국내 상장기업 재무제표 기반 부실예측 + XAI 실무 타당성 검증"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "pandas>=2.2",
+  "scikit-learn>=1.5",
+  "matplotlib>=3.9",
+  "shap>=0.46",
+  "pykrx>=1.0.45",       # 일별 시세만 사용. 시가총액·지수 엔드포인트는 응답이 빈다
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
