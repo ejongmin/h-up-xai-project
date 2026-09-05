@@ -495,6 +495,75 @@ def w08():
     ev(thin, "학습을 격년으로 (관측치 절반)")
 
 
+def shap():
+    """9주차: SHAP 전역 기여도 · 안정성 필터 · 로지스틱 계수와의 정합성.
+
+    **학습·검증 구간에서만** 계산한다. 평가 구간은 최종 1회만 연다.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    from . import config, explain, model, pipeline
+    plt.rcParams["font.family"] = ["AppleGothic", "sans-serif"]
+    plt.rcParams["axes.unicode_minus"] = False
+
+    df = pipeline.load()
+    s_, rep, fin, _ = pipeline._prepare(df)
+    use = pipeline._with_flags(s_, fin)
+    tr = s_["train"]
+    out = config.RESULTS / "w09"; out.mkdir(parents=True, exist_ok=True)
+
+    print("=" * 70)
+    print("[1] 전역 기여도 (학습 구간, 평균 |SHAP|)")
+    est = model.ensemble().fit(tr[use], tr["y"])
+    sv = explain.shap_values(est, tr[use])
+    glob = pd.Series(np.abs(sv).mean(0), index=use).sort_values(ascending=False)
+    print(glob.head(12).round(4).to_string())
+    glob.to_csv(out / "전역기여도.csv")
+
+    print("\n" + "=" * 70)
+    print("[2] 안정성 — 시드 5개로 재학습, 부호가 한 번도 안 뒤집힌 변수만 카드에 올린다")
+    allow = explain.stable_features(
+        lambda random_state: model.ensemble(random_state=random_state),
+        tr[use], tr["y"], seeds=(0, 1, 2, 3, 4), top=99)
+    dropped = [c for c in glob.index[:15] if c not in allow]
+    print(f"  통과 {len(allow)}개 / 전체 {len(use)}개")
+    print(f"  카드에 올릴 상위: {[c for c in glob.index if c in allow][:8]}")
+    print(f"  기여도 상위 15 중 탈락: {dropped or '없음'}")
+    pd.Series(allow).to_csv(out / "안정변수.csv", index=False, header=["변수"])
+
+    print("\n" + "=" * 70)
+    print("[3] 앙상블 SHAP 방향 vs 로지스틱 계수 부호")
+    lr = model.baseline().fit(tr[use], tr["y"])
+    lco = pd.Series(lr.named_steps["clf"].coef_[0], index=use)
+    sdir = pd.Series(sv.mean(0), index=use)
+    cmp_ = pd.DataFrame({"SHAP평균": sdir, "로지스틱계수": lco, "기여도": glob})
+    cmp_["부호일치"] = np.sign(cmp_.SHAP평균) == np.sign(cmp_.로지스틱계수)
+    top = cmp_.sort_values("기여도", ascending=False).head(12)
+    print(top.round(4).to_string())
+    mism = top[~top.부호일치].index.tolist()
+    print(f"\n  상위 12개 중 부호 불일치: {mism or '없음'}")
+    cmp_.to_csv(out / "SHAP_계수_비교.csv")
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    g = glob.head(15)[::-1]
+    ax.barh(range(len(g)), g.values, color=["#1F5F6B" if c in allow else "#C0C7CC" for c in g.index])
+    ax.set_yticks(range(len(g))); ax.set_yticklabels(g.index, fontsize=9)
+    ax.set_xlabel("평균 |SHAP|"); ax.set_title("전역 기여도 (회색 = 안정성 필터 탈락)")
+    fig.tight_layout(); fig.savefig(out / "전역기여도.png", dpi=120); plt.close(fig)
+
+    print("\n" + "=" * 70)
+    print("[4] 설명 카드 예시 — 검증 구간 위험 상위 3건")
+    res = {"splits": s_, "cols": use, "fits": {"앙상블": est}}
+    cards, _ = pipeline.cards(res, n=3, part="valid")
+    for c in cards:
+        print(f"\n--- {c['corp_code']} FY{c['bsns_year']} (실제 사건 {c['y']})")
+        print(c["card"])
+    print(f"\n저장: {out}")
+
+
 def explain_cards():
     from . import pipeline
     res = pipeline.train()
@@ -515,7 +584,7 @@ def compare():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "explain": explain_cards, "compare": compare}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "explain": explain_cards, "compare": compare}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:
