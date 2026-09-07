@@ -723,6 +723,85 @@ def w12():
     print(f"\n저장: {out}")
 
 
+def w13():
+    """13주차: 재무제표에 담기지 않는 정보 — 전수 측정 + 변수 추가 실험.
+
+    12주차는 군당 8건이라 아무것도 확정할 수 없었다. 여기서 전수로 다시 잰다.
+    사건군에서 많이 나오는 것만으로는 신호가 아니다. **정상군 대비**를 함께 본다.
+    """
+    import numpy as np
+    import pandas as pd
+    from . import config, dart, labels, model, pipeline
+    df = pipeline.load()
+    out = config.RESULTS / "w13"; out.mkdir(parents=True, exist_ok=True)
+
+    print("=" * 74)
+    print("[1] 감사인 텍스트·공시 행태 신호를 전수로 적재")
+    rows = []
+    prev_auditor = {}
+    for cc, g in df.sort_values(["corp_code", "bsns_year"]).groupby("corp_code"):
+        for _, r in g.iterrows():
+            y = int(r["bsns_year"])
+            ao = labels.current_period(dart.audit_opinion(cc, y)) or {}
+            emph = (ao.get("emphs_matter") or "").replace("\n", " ")
+            spc = (ao.get("adt_reprt_spcmnt_matter") or "").replace("\n", " ")
+            core = (ao.get("core_adt_matter") or "").replace("\n", " ")
+            blob = f"{emph} {spc}"
+            aud = (ao.get("adtor") or "").strip()
+            chg = int(bool(aud) and cc in prev_auditor and prev_auditor[cc] != aud)
+            if aud:
+                prev_auditor[cc] = aud
+            rows.append({
+                "corp_code": cc, "bsns_year": y,
+                "계속기업불확실성": float(any(k in blob for k in labels.GOING_CONCERN)),
+                "강조사항있음": float(emph.strip() not in ("", "-", "해당사항 없음", "해당사항없음")),
+                "핵심감사사항수": float(core.count("\n") + (1 if core.strip() else 0)),
+                "감사인교체": float(chg),
+            })
+    sig = pd.DataFrame(rows)
+    d = df.merge(sig, on=["corp_code", "bsns_year"], how="left")
+    if "제출기한연장" in d.columns:
+        pass
+    else:
+        d["제출기한연장"] = 0.0
+    cols = ["계속기업불확실성", "강조사항있음", "감사인교체", "제출기한연장"]
+    d[cols] = d[cols].fillna(0.0)
+
+    print("\n[2] 사건군 vs 정상군 등장 비율 — **정상군 대비를 함께 본다**")
+    tab = []
+    for c in cols:
+        a_, b_ = d.loc[d.y == 1, c].mean(), d.loc[d.y == 0, c].mean()
+        # 사건 예측력: 그 신호가 있을 때의 사건비율 / 없을 때의 사건비율
+        on = d.loc[d[c] == 1, "y"].mean() if (d[c] == 1).any() else np.nan
+        off = d.loc[d[c] == 0, "y"].mean()
+        tab.append({"신호": c, "사건군": a_, "정상군": b_, "차이": a_ - b_,
+                    "신호있을때 사건비율": on, "없을때": off,
+                    "배수": on / off if off else np.nan})
+    t = pd.DataFrame(tab).set_index("신호")
+    print(t.round(4).to_string())
+    t.to_csv(out / "담기지않는정보_전수.csv")
+
+    print("\n" + "=" * 74)
+    print("[3] 변수 추가 실험 — 검증 구간. 시점 정합: FY t-1 값만 쓴다")
+    d = d.sort_values(["corp_code", "bsns_year"])
+    for c in cols:
+        d[f"전기_{c}"] = d.groupby("corp_code")[c].shift(1)
+    lag = [f"전기_{c}" for c in cols]
+    s_, rep, fin, _ = pipeline._prepare(d)
+    base_cols = pipeline._with_flags(s_, fin)
+    for name, extra in [("재무 27개 (현행)", []),
+                        ("+ 계속기업불확실성", ["전기_계속기업불확실성"]),
+                        ("+ 공시행태 4종", lag)]:
+        use = base_cols + [c for c in extra if c in s_["train"].columns]
+        m = model.ensemble().fit(s_["train"][use].fillna(0), s_["train"]["y"])
+        p = m.predict_proba(s_["valid"][use].fillna(0))[:, 1]
+        r = model.evaluate(s_["valid"]["y"], p, n_boot=300)
+        print(f"  {name:<22} PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  "
+              f"재현율@정밀도0.3 {r['재현율@정밀도0.3']:.3f}")
+    d.to_csv(config.PROCESSED / "dataset_signals.csv", index=False)
+    print(f"\n저장: {out} · data/processed/dataset_signals.csv")
+
+
 def explain_cards():
     from . import pipeline
     res = pipeline.train()
@@ -733,7 +812,7 @@ def explain_cards():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "explain": explain_cards}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "explain": explain_cards}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:
