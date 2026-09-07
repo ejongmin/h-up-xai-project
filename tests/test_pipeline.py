@@ -105,13 +105,14 @@ def test_market_comparison_runs():
     df = synthetic()
     r = pipeline.compare(df)
     assert set(r["결과"]) == {"재무만", "시장만", "재무+시장"}
+    # 평가 구간은 최종 1회 원칙이라 compare 는 **검증 구간에서만** 판단한다
     for name, sc in r["결과"].items():
-        v = sc["앙상블/test"]["PR-AUC"]
+        v = sc["앙상블/valid"]["PR-AUC"]
         assert v > 0, name
     print("\n--- 3종 비교 (합성) ---")
     print(f"기준선(사건비율) {r['기준선']:.4f}")
     for name, sc in r["결과"].items():
-        v = sc["앙상블/test"]
+        v = sc["앙상블/valid"]
         print(f"  {name:8s} PR-AUC {v['PR-AUC']:.4f} {v['PR-AUC_95CI']}"
               f"  기준선 대비 {v['PR-AUC']/r['기준선']:.1f}배")
     return r

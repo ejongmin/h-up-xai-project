@@ -12,7 +12,6 @@ Shumway는 Altman·Zmijewski 회계비율의 절반이 유의하지 않고 시�
     - 시장수익률 = 표본 전체의 동일가중 일별 수익률 (지수 대신 자체 구성)
   로 만든다. 지수를 쓰지 못한 것은 한계로 명시한다.
 """
-import json
 
 import numpy as np
 import pandas as pd

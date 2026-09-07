@@ -169,6 +169,34 @@ def test_corp_code_stays_a_string(tmp=None):
     assert back["corp_code"].tolist() == ["00126380", "01087079"]
 
 
+def test_no_shadowed_definitions():
+    """같은 이름을 두 번 정의하면 파이썬은 **조용히 나중 것을 쓴다.**
+
+    2026-09-05: `cli.compare` 가 두 번 정의돼 구버전이 이겼고, 인자 없이 호출돼
+    RuntimeError 가 났다. 에러가 났으니 다행이지, 시그니처가 같았으면
+    구버전이 계속 돌면서 아무도 몰랐을 것이다. dict 중복 키도 같은 종류다.
+    """
+    import ast
+    import collections
+    root = Path(__file__).resolve().parents[1]
+    problems = []
+    for f in sorted((root / "src").rglob("*.py")) + sorted((root / "tests").rglob("*.py")):
+        tree = ast.parse(f.read_text())
+        names = collections.Counter(
+            n.name for n in tree.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
+        for k, c in names.items():
+            if c > 1:
+                problems.append(f"{f.name}: 함수 '{k}' 가 {c}번 정의됨")
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Dict):
+                keys = [k.value for k in node.keys if isinstance(k, ast.Constant)]
+                for k, c in collections.Counter(keys).items():
+                    if c > 1:
+                        problems.append(f"{f.name}:{node.lineno}: dict 키 '{k}' 가 {c}번")
+    assert not problems, "\n  " + "\n  ".join(problems)
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
