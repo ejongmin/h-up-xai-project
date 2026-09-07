@@ -84,7 +84,6 @@ def dryrun():
     목적은 결과가 아니라 배선 검증이다. 합성 데이터로는 안 잡히는 문제가
     실응답에서 계속 나왔으므로, 라벨·제외·분할 구간도 실데이터로 한 번 돌려본다.
     """
-    import pandas as pd
     from . import config, dataset, labels, pipeline
 
     uni = dart.universe()
@@ -136,7 +135,7 @@ def build():
 def tables():
     """4주차 산출물: 표본 구성표 · 결측률 표 · 감사의견 불명 민감도."""
     import pandas as pd
-    from . import config, dataset, model, pipeline, features
+    from . import config, pipeline, features
     pd.set_option("display.width", 200)
     df = pipeline.load()
     out = config.RESULTS / "w04"
@@ -202,7 +201,6 @@ def eda():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import numpy as np
     import pandas as pd
     from . import config, features, pipeline
     plt.rcParams["font.family"] = ["AppleGothic", "sans-serif"]
@@ -296,7 +294,7 @@ def diagnose():
     """
     import numpy as np
     import pandas as pd
-    from . import config, dataset, features, model, pipeline
+    from . import config, dataset, model, pipeline
     df = pipeline.load()
     s_, rep, fin, _ = pipeline._prepare(df)
     tr = s_["train"]
@@ -408,7 +406,6 @@ def prices():
 
 def compare():
     """재무만 / 시장만 / 재무+시장 — **검증 구간에서만 판단**."""
-    import pandas as pd
     from . import config, pipeline
     f = config.PROCESSED / "dataset_mkt.csv"
     if not f.exists():
@@ -427,10 +424,8 @@ def w08():
 
     **전부 검증 구간에서 판단한다.** 평가 구간은 최종 모델 확정 후 1회.
     """
-    import numpy as np
     import pandas as pd
-    from . import config, dataset, model, pipeline
-    rng = np.random.default_rng(0)
+    from . import model, pipeline
     df = pipeline.load()
     s_, rep, fin, _ = pipeline._prepare(df)
     use = pipeline._with_flags(s_, fin)
@@ -480,7 +475,7 @@ def w08():
     seen = set(tr["corp_code"])
     va_new = va[~va["corp_code"].isin(seen)]
     m = model.ensemble().fit(tr[use], tr["y"])
-    for label, d in [("검증 전체", va), (f"학습에 없던 기업만", va_new)]:
+    for label, d in [("검증 전체", va), ("학습에 없던 기업만", va_new)]:
         if len(d) < 50 or d.y.sum() < 5:
             print(f"  {label:<34} 표본 부족 (n={len(d)}, 사건={int(d.y.sum())})")
             continue
@@ -538,9 +533,10 @@ def shap():
     print("[3] 앙상블 SHAP 방향 vs 로지스틱 계수 부호")
     lr = model.baseline().fit(tr[use], tr["y"])
     lco = pd.Series(lr.named_steps["clf"].coef_[0], index=use)
-    sdir = pd.Series(sv.mean(0), index=use)
-    cmp_ = pd.DataFrame({"SHAP평균": sdir, "로지스틱계수": lco, "기여도": glob})
-    cmp_["부호일치"] = np.sign(cmp_.SHAP평균) == np.sign(cmp_.로지스틱계수)
+    # SHAP 평균이 아니라 **값↔SHAP 상관**으로 비교한다. 평균은 0 근처 잡음이다
+    sdir = explain.direction(tr[use], sv)
+    cmp_ = pd.DataFrame({"SHAP방향": sdir, "로지스틱계수": lco, "기여도": glob})
+    cmp_["부호일치"] = np.sign(cmp_.SHAP방향) == np.sign(cmp_.로지스틱계수)
     top = cmp_.sort_values("기여도", ascending=False).head(12)
     print(top.round(4).to_string())
     mism = top[~top.부호일치].index.tolist()
@@ -564,6 +560,96 @@ def shap():
     print(f"\n저장: {out}")
 
 
+def faithful():
+    """11주차: 설명 충실도 검증. **검증 구간에서만.**
+
+    실무자에게 물을 수 없게 됐으므로 '납득되는가'는 확인 불가다.
+    확인 가능한 것은 '설명이 모델을 정직하게 반영하는가'까지다.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    from . import config, explain, model, pipeline
+    plt.rcParams["font.family"] = ["AppleGothic", "sans-serif"]
+    plt.rcParams["axes.unicode_minus"] = False
+
+    df = pipeline.load()
+    s_, rep, fin, _ = pipeline._prepare(df)
+    use = pipeline._with_flags(s_, fin)
+    tr, va = s_["train"], s_["valid"]
+    est = model.ensemble().fit(tr[use], tr["y"])
+    out = config.RESULTS / "w11"; out.mkdir(parents=True, exist_ok=True)
+
+    X = va[use].copy()
+    base = est.predict_proba(X)[:, 1]
+    med = tr[use].median()
+    risky = np.argsort(-base)[:300]          # 위험 상위 300건에서 검사
+    sv = explain.shap_values(est, X)
+
+    print("=" * 70)
+    print("[1] 삭제 검사 — SHAP 상위 k개를 중앙값으로 치환하면 확률이 떨어지는가")
+    print("    떨어지지 않으면 그 설명은 모델의 근거가 아니다\n")
+    rng = np.random.default_rng(0)
+    ks = [1, 2, 3, 5, 8, 12]
+    curve = {"k": ks, "SHAP상위": [], "무작위": []}
+    for k in ks:
+        for mode in ("shap", "rand"):
+            Z = X.copy()
+            for i in risky:
+                if mode == "shap":
+                    cols = np.argsort(-sv[i])[:k]        # 위험을 올린 상위 k
+                else:
+                    cols = rng.choice(len(use), k, replace=False)
+                for j in cols:
+                    Z.iloc[i, j] = med.iloc[j]
+            p = est.predict_proba(Z)[:, 1][risky]
+            drop = float((base[risky] - p).mean())
+            curve["SHAP상위" if mode == "shap" else "무작위"].append(drop)
+    t = pd.DataFrame(curve).set_index("k")
+    t["차이"] = t["SHAP상위"] - t["무작위"]
+    print(t.round(4).to_string())
+    t.to_csv(out / "삭제검사.csv")
+    ok = (t["차이"] > 0).all()
+    print(f"\n  모든 k 에서 SHAP 상위가 무작위보다 크게 떨어뜨림: {'예' if ok else '아니오'}")
+    print(f"  k=3 기준 SHAP {t.loc[3,'SHAP상위']:.4f} vs 무작위 {t.loc[3,'무작위']:.4f} "
+          f"({t.loc[3,'SHAP상위']/max(t.loc[3,'무작위'],1e-9):.1f}배)")
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    ax.plot(t.index, t["SHAP상위"], marker="o", label="SHAP 상위 k개 치환", color="#1F5F6B")
+    ax.plot(t.index, t["무작위"], marker="s", ls="--", label="무작위 k개 치환", color="#A9702A")
+    ax.set_xlabel("치환한 변수 개수 k"); ax.set_ylabel("부실확률 평균 하락폭")
+    ax.set_title("삭제 검사 (검증 구간 위험 상위 300건)"); ax.legend()
+    fig.tight_layout(); fig.savefig(out / "삭제검사.png", dpi=120); plt.close(fig)
+
+    print("\n" + "=" * 70)
+    print("[2] 카드 문장이 관측값과 모순되는 사례")
+    allow = explain.stable_features(
+        lambda random_state: model.ensemble(random_state=random_state), tr[use], tr["y"], top=99)
+    ref = tr[use].median()
+    n_card = n_bad = 0
+    bad_by_var = {}
+    for i in risky[:150]:
+        row, contrib = X.iloc[i], pd.Series(sv[i], index=use)
+        for name, c in contrib.items():
+            if name not in allow or name.endswith("_결측"):
+                continue
+            side = explain._risky_side(name, row.get(name), ref)
+            if side is None:
+                continue
+            n_card += 1
+            if (c > 0) != side:                 # 묶음과 문장이 반대 방향
+                n_bad += 1
+                bad_by_var[name] = bad_by_var.get(name, 0) + 1
+    print(f"  검사한 (사례 × 변수) {n_card:,}건 중 모순 {n_bad:,}건 ({n_bad/max(n_card,1):.1%})")
+    print("  변수별 모순 빈도:")
+    for k_, v_ in sorted(bad_by_var.items(), key=lambda x: -x[1])[:8]:
+        print(f"    {k_:<16} {v_}")
+    print("\n  → 모순은 버그가 아니라 모델이 관측값과 반대로 판단한 지점이다. 12주차 재료.")
+    print(f"\n저장: {out}")
+
+
 def explain_cards():
     from . import pipeline
     res = pipeline.train()
@@ -573,18 +659,8 @@ def explain_cards():
         print(f"--- {c['corp_code']} FY{c['bsns_year']} (실제 {c['y']})\n{c['card']}\n")
 
 
-def compare():
-    from . import pipeline
-    r = pipeline.compare()
-    print(f"기준선(사건비율) PR-AUC = {r['기준선']:.4f}\n")
-    for name, sc in r["결과"].items():
-        for k, v in sc.items():
-            print(f"{name:8s} {k:12s} PR-AUC {v['PR-AUC']:.4f} {v['PR-AUC_95CI']} "
-                  f"| 기준선 대비 {v['PR-AUC']/r['기준선']:.1f}배")
-
-
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "explain": explain_cards, "compare": compare}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "explain": explain_cards}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:

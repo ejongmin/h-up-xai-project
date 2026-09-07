@@ -4,7 +4,6 @@
 자동 생성 파생변수는 쓰지 않는다 — 성능이 올라도 설명이 불가능해진다.
 """
 import numpy as np
-import pandas as pd
 
 # DART fnlttSinglAcntAll 계정 매핑.
 #   (재무제표 구분, 후보 account_id, 후보 account_nm)

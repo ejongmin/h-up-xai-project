@@ -76,19 +76,42 @@ def shap_values(model, X, background=None):
         return ex.shap_values(X)
 
 
-def stable_features(model_fn, X, y, seeds=(0, 1, 2, 3, 4), top=10):
-    """시드를 바꿔 재학습해도 평균 기여 부호가 유지되는 변수만 남긴다."""
-    signs, mags = [], []
+def direction(X, sv):
+    """변수마다 `값 ↔ SHAP` 상관. 카드가 주장하는 '높으면 위험'의 방향 그 자체다."""
+    out = {}
+    for j, c in enumerate(X.columns):
+        x = X.iloc[:, j].to_numpy(dtype=float)
+        y = sv[:, j]
+        if x.std() == 0 or y.std() == 0:
+            out[c] = 0.0
+        else:
+            out[c] = float(np.corrcoef(x, y)[0, 1])
+    return pd.Series(out)
+
+
+def stable_features(model_fn, X, y, seeds=(0, 1, 2, 3, 4), top=10, min_corr=0.2):
+    """시드를 바꿔 재학습해도 **방향이 유지되는** 변수만 남긴다.
+
+    2026-09-08 수정: 이전에는 SHAP 값의 **평균 부호**를 봤다. 그런데 SHAP 평균은
+    기업마다 +/− 가 상쇄돼 0 근처의 잡음이다(ROA 는 평균 −0.014, 크기 0.311 — 4%).
+    잡음의 부호는 시드마다 당연히 뒤집히고, 그래서 기여도 1·3위가 탈락했다.
+    **측정 대상이 틀렸다.**
+
+    카드가 주장하는 것은 "이 변수가 높으면 위험하다"는 방향이므로,
+    `값 ↔ SHAP` 상관의 부호가 모든 시드에서 같고 크기가 min_corr 이상인 변수만 남긴다.
+    """
+    dirs, mags = [], []
     for s in seeds:
         m = model_fn(random_state=s).fit(X, y)
         sv = shap_values(m, X)
-        signs.append(np.sign(sv.mean(0)))
+        dirs.append(direction(X, sv))
         mags.append(np.abs(sv).mean(0))
-    signs = np.array(signs)
-    keep = (np.abs(signs.sum(0)) == len(seeds))          # 부호가 한 번도 안 뒤집힘
-    rank = np.array(mags).mean(0)
-    idx = [i for i in np.argsort(-rank) if keep[i]][:top]
-    return [X.columns[i] for i in idx]
+    D = pd.DataFrame(dirs)                      # 시드 × 변수
+    same_sign = (np.sign(D).nunique() == 1)     # 부호가 한 번도 안 뒤집힘
+    strong = (D.abs().min() >= min_corr)        # 모든 시드에서 방향이 뚜렷함
+    keep = same_sign & strong
+    rank = pd.Series(np.array(mags).mean(0), index=X.columns)
+    return [c for c in rank.sort_values(ascending=False).index if keep.get(c, False)][:top]
 
 
 def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None):

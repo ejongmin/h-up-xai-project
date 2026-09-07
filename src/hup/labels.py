@@ -8,8 +8,6 @@ FY2023 재무제표로 FY2023 감사의견을 맞히면 그건 예측이 아니�
 그래서 사건 시점은 '그 의견이 실린 보고서의 접수일자'로 잡고,
 피처는 그보다 앞선 보고서에서만 가져온다. 이 규칙은 dataset.py 가 강제한다.
 """
-import csv
-import json
 
 import pandas as pd
 
