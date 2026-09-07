@@ -114,6 +114,15 @@ def stable_features(model_fn, X, y, seeds=(0, 1, 2, 3, 4), top=10, min_corr=0.2)
     return [c for c in rank.sort_values(ascending=False).index if keep.get(c, False)][:top]
 
 
+# 카드에 올리지 않는 변수. **모델에서 빼는 것이 아니라 문장으로 만들지 않는 것**이다.
+# 근거 셋 (2026-09-08):
+#   1. 판별력이 수준값의 1/50 (6주차 EDA)
+#   2. 사건 기업은 3년 전부터 이미 나쁘고 크게 변하지 않는다 (6주차 궤적)
+#   3. 카드 문장–관측값 모순의 51% 를 만든다. 빼면 23.8% → 14.1% (11주차 충실도)
+def _card_excluded(name):
+    return name.endswith("_결측") or name.startswith("Δ") or name.endswith("증가율")
+
+
 def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None):
     """한 기업-연도에 대한 설명 카드(문자열).
 
@@ -124,7 +133,7 @@ def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None):
     s = pd.Series(sv, index=cols)
     if allow:
         s = s[[c for c in s.index if c in allow]]
-    s = s[[c for c in s.index if not c.endswith("_결측")]]
+    s = s[[c for c in s.index if not _card_excluded(c)]]
 
     def line(name, contrib):
         risky, safe, unit = PHRASE.get(name, (f"{name}이(가) 위험 쪽입니다",

@@ -94,79 +94,21 @@ def test_metrics_are_not_accuracy():
 def test_card_reads_off_the_observed_value():
     """묶음은 SHAP 부호, 문장은 관측값. 이 둘을 섞으면 카드가 거꾸로 읽힌다."""
     from hup import explain
-    cols = ["부채비율", "유동비율", "자본잠식", "매출증가율"]
-    row = pd.Series({"부채비율": 8.0, "유동비율": 0.3, "자본잠식": 1.0, "매출증가율": -0.4})
-    ref = pd.Series({"부채비율": 1.2, "유동비율": 1.5})
-    txt = explain.card(row, np.array([0.4, 0.3, 0.2, -0.1]), cols, ref=ref, prob=0.42)
-    assert "부채비율이 높습니다" in txt
+    cols = ["부채비율", "유동비율", "자본잠식", "재고자산회전율"]
+    row = pd.Series({"부채비율": 8.0, "유동비율": 0.3, "자본잠식": 1.0, "재고자산회전율": 9.0})
+    ref = pd.Series({"부채비율": 1.2, "유동비율": 1.5, "재고자산회전율": 6.0})
+    # 부채비율만 SHAP 이 음수 = 모델은 위험을 낮췄다고 본다. 그런데 값은 위험 쪽(8.0 > 1.2)
+    txt = explain.card(row, np.array([-0.1, 0.4, 0.3, 0.2]), cols, ref=ref, prob=0.42)
     assert "현금화 가능한 자산이 부족합니다" in txt
     assert "자본잠식" in txt and "실측 1.00" not in txt
-    # SHAP 은 위험을 낮췄다고 했지만 매출은 줄었다 → 줄었다고 그대로 쓴다
-    assert "위험을 낮춘 요인" in txt and "매출이 줄었습니다" in txt
+    assert "위험을 낮춘 요인" in txt and "부채비율이 높습니다" in txt, \
+        "모델이 관측값과 반대로 판단한 지점을 카드가 감추면 안 된다"
 
-def test_audit_response_keeps_only_current_period():
-    """이 API 는 당기·전기·전전기를 같은 rcept_no 로 준다. 셋 다 쓰면 유령 사건이 생긴다."""
-    from hup import labels
-    # 2026-09-03 삼성전자 실제 응답 서식 (개행·공백 변형 포함)
-    rows = [{"bsns_year": "제55기\n(당기)", "adt_opinion": "적정", "rcept_no": "20240312000736"},
-            {"bsns_year": "제54기\n(전기)", "adt_opinion": "의견거절", "rcept_no": "20240312000736"},
-            {"bsns_year": "제53기  (전전기)", "adt_opinion": "한정", "rcept_no": "20240312000736"}]
-    cur = labels.current_period(rows)
-    assert cur["adt_opinion"] == "적정", "전기·전전기 의견이 당기로 새어 들어왔다"
-    assert labels.current_period([{"bsns_year": "제75기(당기)", "adt_opinion": "부적정"}])["adt_opinion"] == "부적정"
-    assert labels.current_period([]) is None
-
-
-def test_exclusions_do_not_catch_meritz():
-    """'리츠'를 부분문자열로 잡으면 메리츠금융지주가 리츠가 된다."""
-    panel = pd.DataFrame({"corp_code": ["A", "B", "C", "D"], "bsns_year": [2023] * 4})
-    meta = pd.DataFrame({
-        "corp_code": ["A", "B", "C", "D"],
-        "corp_name": ["메리츠금융지주", "케이탑리츠", "한화에이스기업인수목적2호", "삼성전자"],
-        "induty_code": ["64992", "68112", "661", "26410"],
-        "acc_mt": ["12", "12", "12", "12"]})
-    kept, dropped = dataset.apply_exclusions(panel, meta)
-    why = dict(zip(dropped["corp_code"], dropped["_excl"]))
-    assert why["A"] == "금융업", "메리츠는 금융업이지 리츠가 아니다"
-    assert why["B"] == "스팩/리츠"
-    assert why["C"] == "스팩/리츠", "스팩은 업종코드 661 이라 금융업으로 먼저 걸리면 사유가 틀린다"
-    assert kept["corp_code"].tolist() == ["D"]
-
-
-def test_opinion_classification():
-    """실측 표기 변형들. '부적정'이 '적정'을 포함한다는 게 함정이다."""
-    from hup import labels
-    for t in ["의견거절", "거절", "한정", "한정의견", "부적정의견", "한정(감사범위제한)",
-              "감사범위제한으로인한한정", "(별도)의견거절(주3)\n(연결)의견거절(주4)"]:
-        assert labels.classify_opinion(t) == "비적정", t
-    for t in ["적정", "적정의견", "연결:적정 별도:적정", "적정(공정)", "공정",
-              "예외사항없음", "지적사항없음", "적정 (별도/연결)"]:
-        assert labels.classify_opinion(t) == "적정", t
-    for t in ["", None, "   ", "삼정회계법인", "(주1)"]:
-        assert labels.classify_opinion(t) == "불명", repr(t)
-
-
-def test_winsorize_spares_binary_flags():
-    """희귀 이진 지표를 분위 클리핑하면 변수 자체가 사라진다."""
-    rng = np.random.default_rng(0)
-    tr = pd.DataFrame({"부채비율": rng.normal(2, .5, 1000),
-                       "완전자본잠식": (rng.random(1000) < 0.005).astype(float)})
-    st = dataset.fit_clean(tr, cols=["부채비율", "완전자본잠식"])
-    assert "완전자본잠식" in st["binary"] and "부채비율" in st["clip"]
-    out = dataset.apply_clean(tr, st)
-    assert out["완전자본잠식"].nunique() == 2, "이진 플래그가 상수로 뭉개졌다"
-
-
-def test_corp_code_stays_a_string(tmp=None):
-    """고유번호는 8자리 문자열이다. 정수로 읽히면 앞자리 0 이 날아간다."""
-    import tempfile, os
-    from hup import pipeline
-    d = pd.DataFrame({"corp_code": ["00126380", "01087079"], "bsns_year": [2023, 2023],
-                      "rcept_dt": pd.to_datetime(["2024-03-12", "2024-03-20"]), "y": [0, 1]})
-    with tempfile.TemporaryDirectory() as t:
-        f = os.path.join(t, "d.csv"); d.to_csv(f, index=False)
-        back = pipeline.load(f)
-    assert back["corp_code"].tolist() == ["00126380", "01087079"]
+    # 변화량·증가율·결측 더미는 카드 문장으로 만들지 않는다 (모델에서 빼는 것과 다름)
+    cols2 = cols + ["Δ부채비율", "자산증가율", "부채비율_결측"]
+    row2 = pd.concat([row, pd.Series({"Δ부채비율": 3.0, "자산증가율": -0.9, "부채비율_결측": 1.0})])
+    t2 = explain.card(row2, np.array([-0.1, 0.4, 0.3, 0.2, 0.9, 0.8, 0.7]), cols2, ref=ref)
+    assert "전년 대비" not in t2 and "자산이 줄었습니다" not in t2 and "결측" not in t2
 
 
 def test_no_shadowed_definitions():

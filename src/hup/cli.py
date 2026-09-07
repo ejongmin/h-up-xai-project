@@ -650,6 +650,79 @@ def faithful():
     print(f"\n저장: {out}")
 
 
+def w12():
+    """12주차: 오분류 사례 분석. 미탐 8 · 오탐 8 · 정탐 4 (검증 구간).
+
+    감사인이 남긴 텍스트(강조사항·핵심감사사항)를 함께 붙여 본다 —
+    모델이 못 본 것이 재무제표 밖에 있었는지 확인하려는 것이다.
+    """
+    import numpy as np
+    import pandas as pd
+    from . import config, dart, explain, labels, model, pipeline
+    df = pipeline.load()
+    s_, rep, fin, _ = pipeline._prepare(df)
+    use = pipeline._with_flags(s_, fin)
+    tr, va = s_["train"], s_["valid"]
+    est = model.ensemble().fit(tr[use], tr["y"])
+    cal = model.calibrated(model.ensemble, "isotonic").fit(tr[use], tr["y"])
+    out = config.RESULTS / "w12"; out.mkdir(parents=True, exist_ok=True)
+
+    va = va.copy()
+    va["p"] = cal.predict_proba(va[use])[:, 1]
+    va["순위"] = va["p"].rank(ascending=False, method="first").astype(int)
+    hi = va["p"].quantile(0.95)                       # 상위 5% 를 '고위험'으로 본다
+    miss = va[(va.y == 1) & (va.p < hi)].nsmallest(8, "p")     # 미탐
+    fp = va[(va.y == 0) & (va.p >= hi)].nlargest(8, "p")       # 오탐
+    tp = va[(va.y == 1) & (va.p >= hi)].nlargest(4, "p")       # 정탐
+
+    print(f"검증 구간 {len(va):,}건 / 사건 {int(va.y.sum())}건 / 고위험 임계 {hi:.3f}")
+    print(f"미탐 {len(miss)} · 오탐 {len(fp)} · 정탐 {len(tp)}\n")
+
+    names = {r["corp_code"]: r["corp_name"] for r in dart.corp_codes()}
+    rows = []
+    for label, part in [("미탐", miss), ("오탐", fp), ("정탐", tp)]:
+        for _, r in part.iterrows():
+            cc, y = r["corp_code"], int(r["bsns_year"])
+            ao = labels.current_period(dart.audit_opinion(cc, y)) or {}
+            emph = (ao.get("emphs_matter") or "").replace("\n", " ").strip()
+            gc = any(k in emph for k in labels.GOING_CONCERN)
+            rows.append({
+                "유형": label, "기업": names.get(cc, cc)[:14], "FY": y,
+                "확률": round(float(r["p"]), 4), "실제": int(r["y"]),
+                "감사의견": labels.classify_opinion(ao.get("adt_opinion")),
+                "계속기업언급": "○" if gc else "",
+                "강조사항": (emph[:60] + "…") if len(emph) > 60 else emph,
+            })
+    t = pd.DataFrame(rows)
+    print(t.drop(columns=["강조사항"]).to_string(index=False))
+    t.to_csv(out / "오분류_사례.csv", index=False)
+
+    print("\n" + "=" * 70)
+    print("[진단] 미탐 기업의 직전 보고서에 이미 신호가 있었는가")
+    for label in ("미탐", "오탐", "정탐"):
+        g = t[t.유형 == label]
+        print(f"  {label}: 계속기업 불확실성 언급 {int((g.계속기업언급=='○').sum())}/{len(g)}"
+              f" · 감사의견 비적정 {int((g.감사의견=='비적정').sum())}/{len(g)}")
+
+    print("\n" + "=" * 70)
+    print("[미탐 사례 상세] 모델이 본 것 vs 감사인이 적은 것")
+    sv = explain.shap_values(est, va[use])
+    allow = explain.stable_features(
+        lambda random_state: model.ensemble(random_state=random_state), tr[use], tr["y"], top=99)
+    ref = tr[use].median()
+    idx = {v: i for i, v in enumerate(va.index)}
+    for _, r in miss.head(4).iterrows():
+        i = idx[r.name]
+        print(f"\n--- {names.get(r['corp_code'], r['corp_code'])[:14]} FY{int(r['bsns_year'])}"
+              f"  확률 {r['p']:.1%} (실제 사건)")
+        print(explain.card(va[use].iloc[i], sv[i], use, allow=allow, ref=ref, top_k=3))
+        row = t[(t.기업 == names.get(r["corp_code"], r["corp_code"])[:14]) & (t.FY == int(r["bsns_year"]))]
+        if len(row):
+            e = row.iloc[0]["강조사항"]
+            print(f"  감사인 강조사항: {e or '(없음)'}")
+    print(f"\n저장: {out}")
+
+
 def explain_cards():
     from . import pipeline
     res = pipeline.train()
@@ -660,7 +733,7 @@ def explain_cards():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "explain": explain_cards}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "explain": explain_cards}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:
