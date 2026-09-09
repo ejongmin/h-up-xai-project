@@ -656,7 +656,6 @@ def w12():
     감사인이 남긴 텍스트(강조사항·핵심감사사항)를 함께 붙여 본다 —
     모델이 못 본 것이 재무제표 밖에 있었는지 확인하려는 것이다.
     """
-    import numpy as np
     import pandas as pd
     from . import config, dart, explain, labels, model, pipeline
     df = pipeline.load()
@@ -802,6 +801,105 @@ def w13():
     print(f"\n저장: {out} · data/processed/dataset_signals.csv")
 
 
+def final():
+    """8주차 종결: 최종 모델 확정 + **평가 구간 최종 1회 개봉**.
+
+    이 명령은 평가 구간을 연다. 실행 시점과 조건이 results/final/ 에 기록된다.
+    결과가 나쁘게 나와도 돌아가 튜닝하지 않는다 — 그러면 평가 구간이 아니게 된다.
+    """
+    import datetime as dt
+    import json
+    from . import config, model, pipeline
+    out = config.RESULTS / "final"; out.mkdir(parents=True, exist_ok=True)
+
+    spec = {
+        "확정일": dt.date.today().isoformat(),
+        "주 모델": "HistGradientBoosting (class_weight=balanced)",
+        "순위·선별": "비보정 앙상블 — isotonic 은 계단함수라 동점을 만들어 순위 지표를 떨어뜨린다",
+        "표시 확률": "isotonic 보정본 — 비보정은 확률이 실제의 7.6배로 부풀려진다",
+        "변수": "재무비율 27개 + 결측 더미. 시장변수·공시행태는 보조 분석에만",
+        "학습 설계": "전수 학습 (매칭 학습은 검증 구간에서 더 나빴다: 0.253 vs 0.386)",
+        "예측 창": f"{config.HORIZON_DAYS}일 (민감도 {list(config.HORIZON_SENSITIVITY)})",
+        "분할": {k: list(v) for k, v in config.SPLIT.items()},
+    }
+    print("=" * 72)
+    print("최종 모델 확정")
+    for k, v in spec.items():
+        print(f"  {k}: {v}")
+
+    df = pipeline.load()
+    s_, rep, fin, _ = pipeline._prepare(df)
+    use = pipeline._with_flags(s_, fin)
+    tr, te = s_["train"], s_["test"]
+    est = model.ensemble().fit(tr[use], tr["y"])
+    cal = model.calibrated(model.ensemble, "isotonic").fit(tr[use], tr["y"])
+
+    print("\n" + "=" * 72)
+    print(f"평가 구간 개봉 — {dt.datetime.now():%Y-%m-%d %H:%M}")
+    print(f"  n={len(te):,}  사건={int(te.y.sum())}  사건비율={te.y.mean():.4f}\n")
+    base = float(te["y"].mean())
+    res = {"기준선": base}
+    for name, m in (("앙상블(비보정)", est), ("앙상블+isotonic (최종)", cal)):
+        p = m.predict_proba(te[use])[:, 1]
+        r = model.evaluate(te["y"], p, n_boot=1000)
+        res[name] = {k: (list(v) if isinstance(v, tuple) else v) for k, v in r.items()}
+        print(f"  {name}")
+        print(f"    PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  기준선 대비 {r['PR-AUC']/base:.1f}배")
+        print(f"    ROC-AUC {r['ROC-AUC']:.4f}  재현율@정밀도0.3 {r['재현율@정밀도0.3']:.3f}"
+              f"  Brier {r['Brier']:.4f}")
+
+    # 창 민감도도 평가 구간에서 한 번에
+    print("\n  예측 창 민감도 (평가 구간)")
+    for h in config.HORIZON_SENSITIVITY:
+        f = config.PROCESSED / ("dataset.csv" if h == config.HORIZON_DAYS else f"dataset_h{h}.csv")
+        if not f.exists():
+            continue
+        d2 = pipeline.load(f)
+        s2, _, fin2, _ = pipeline._prepare(d2)
+        u2 = pipeline._with_flags(s2, fin2)
+        m2 = model.ensemble().fit(s2["train"][u2], s2["train"]["y"])
+        p2 = m2.predict_proba(s2["test"][u2])[:, 1]
+        r2 = model.evaluate(s2["test"]["y"], p2, n_boot=300)
+        mark = "  <- 주 분석" if h == config.HORIZON_DAYS else ""
+        print(f"    창 {h}일  사건 {int(s2['test'].y.sum()):>3}  "
+              f"PR-AUC {r2['PR-AUC']:.4f} {r2['PR-AUC_95CI']}  "
+              f"기준선 대비 {r2['PR-AUC']/s2['test'].y.mean():.1f}배{mark}")
+        res[f"창{h}일"] = {"PR-AUC": r2["PR-AUC"], "사건": int(s2["test"].y.sum())}
+
+    (out / "최종성능.json").write_text(
+        json.dumps({"사양": spec, "결과": res}, ensure_ascii=False, indent=2, default=str))
+    print(f"\n저장: {out}/최종성능.json")
+    print("\n※ 평가 구간은 이것으로 닫는다. 이후 결과를 보고 설계를 바꾸지 않는다.")
+
+
+def market_actions():
+    """3주차 잔여: 관리종목·상장폐지 후보를 거래소공시에서 전수 수집 (보조 정의용).
+
+    사유(재무/비재무) 판정만 사람이 한다 — 공시명에 안 나온다.
+    """
+    from . import config, dart, labels
+    uni = dart.universe()
+    corps = sorted(uni)
+    print(f"대상 {len(corps):,}사 — 기업별 거래소공시 조회 (3개월 제한 없음)", flush=True)
+    done = []
+    try:
+        for i, cc in enumerate(corps):
+            done.append(cc)
+            if i % 200 == 0:
+                print(f"  {i}/{len(corps)}  실호출 {dart.CALLS:,}", flush=True)
+            labels.market_action_candidates([cc])
+    except dart.QuotaExceeded as e:
+        print(f"{e}\n  {len(done):,}사까지. 내일 같은 명령으로 이어서.")
+    df = labels.market_action_candidates(done)
+    out = config.MANUAL / "kind_events_후보.csv"
+    df.to_csv(out, index=False)
+    print(f"\n후보 {len(df):,}건 → {out}")
+    if len(df):
+        print(df["event_type"].value_counts().to_string())
+        print("\n연도별:", df["event_date"].str[:4].value_counts().sort_index().to_dict())
+        print("\n※ reason_is_financial 열을 Y/N 으로 채우면 labels.manual_events 가 읽는다")
+
+
 def explain_cards():
     from . import pipeline
     res = pipeline.train()
@@ -812,7 +910,7 @@ def explain_cards():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "explain": explain_cards}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "explain": explain_cards}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:
