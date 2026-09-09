@@ -121,6 +121,46 @@ def rehab_events(bgn_de, end_de):
     return pd.DataFrame(rows)
 
 
+# 거래소공시(pblntf_ty='I') 보고서명 분류. 2023Q1 표본에서 57종 문구를 확인해 만들었다.
+# '우려'·'해소'·'안내'·'예고'를 실제 지정으로 세면 보조 정의가 통째로 오염된다.
+_MKT_HIT = ("사유발생", "사유 발생", "지정ㆍ형식적상장폐지", "상장폐지결정", "상장폐지승인")
+_MKT_SKIP = ("우려", "해소", "미진행", "안내", "예고", "철회", "가처분", "효력정지",
+             "자진상장폐지", "정리매매", "이전상장", "신청서 제출", "투자유의")
+
+
+def market_action_candidates(corp_codes, bgn_de="20150101", end_de="20261231"):
+    """관리종목·상장폐지 후보를 거래소공시에서 뽑는다 (보조 정의용).
+
+    **자동화되는 것**: 사건 후보의 기업·날짜·공시명, 그리고 지정/폐지 구분.
+    **자동화 안 되는 것**: 재무 사유인지 비재무 사유인지. 공시명에 안 나온다.
+      docs/01 §2.3 이 요구하는 reason_is_financial 은 본문을 열어야 하므로
+      `확인필요` 열을 채워 사람이 판정하도록 남긴다.
+    """
+    rows = []
+    for cc in corp_codes:
+        for d in dart.disclosures_all(bgn_de, end_de, corp_code=cc, pblntf_ty="I"):
+            nm = d.get("report_nm", "")
+            if not any(k in nm for k in ("관리종목", "상장폐지")):
+                continue
+            if any(k in nm for k in _MKT_SKIP):
+                continue
+            if not any(k in nm for k in _MKT_HIT):
+                continue
+            rows.append({
+                "corp_code": cc, "corp_name": d.get("corp_name", ""),
+                "event_date": d["rcept_dt"],
+                "event_type": "상장폐지" if "상장폐지" in nm else "관리종목",
+                "detail": nm, "rcept_no": d.get("rcept_no", ""),
+                "reason_is_financial": "",          # ← 사람이 채운다 (Y/N)
+                "확인필요": "Y",
+            })
+    df = pd.DataFrame(rows)
+    if len(df):
+        df = df.sort_values(["corp_code", "event_date"]).drop_duplicates(
+            ["corp_code", "event_date", "event_type"])
+    return df
+
+
 def manual_events(path=None):
     """KIND 에서 받아 손으로 정리한 관리종목/상장폐지 표 (보조 정의용).
 

@@ -79,7 +79,12 @@ def test_split_is_chronological():
     })
     s = dataset.split(df)
     rep = dataset.sanity(s)
-    assert rep["train"]["n"] == 7 and rep["valid"]["n"] == 1 and rep["test"]["n"] == 2
+    # 개수를 박아두지 않는다 — 분할 정의가 바뀌면 테스트가 깨져야 하는 게 아니라
+    # **분할이 시점 순인지**가 깨져야 한다 (sanity 가 이미 검사한다)
+    from hup import config
+    for k, (a_, b_) in config.SPLIT.items():
+        assert rep[k]["n"] == b_ - a_ + 1, f"{k} 구간 행 수가 연도 수와 다르다"
+    assert sum(rep[k]["n"] for k in rep) == len(df)
 
 
 def test_metrics_are_not_accuracy():
