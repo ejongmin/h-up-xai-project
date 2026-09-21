@@ -983,8 +983,27 @@ def export():
          for k, v in explain.PHRASE.items()])
     save(ph, "4_설명카드_문안")
 
+    # 5. cli tables 출력도 파일로 (터미널에만 찍히면 남지 않는다)
+    for src in ("w04/표본구성표.csv", "w04/결측률_변수별.csv", "w04/결측률_사건군비교.csv"):
+        f = config.RESULTS / src
+        if f.exists():
+            save(pd.read_csv(f, index_col=0), "5_" + f.stem, index=True)
+
+    # 6. 데이터셋 전체 — 엑셀 파일로. CSV 는 12MB 에 BOM 도 없어 그냥 열면 깨진다
+    xl = out / "dataset.xlsx"
+    try:
+        keep = ["corp_code", "corp_name", "bsns_year", "rcept_dt", "y", "event_type",
+                "재무제표기준", "감사의견판정"] + cols
+        d2 = df[[c for c in keep if c in df.columns]]
+        with pd.ExcelWriter(xl, engine="openpyxl") as w:
+            d2.to_excel(w, sheet_name="데이터셋", index=False, freeze_panes=(1, 3))
+        print(f"  {'6_dataset.xlsx':<28} {len(d2):>6,}행  {xl.stat().st_size/1024/1024:>5.1f}MB")
+    except Exception as e:
+        print(f"  dataset.xlsx 실패: {type(e).__name__} {e}")
+
     print(f"\n저장 위치: {out}")
-    print("전부 utf-8-sig — 파인더에서 더블클릭하면 엑셀이 바로 엽니다")
+    print("CSV 는 전부 utf-8-sig — 더블클릭하면 엑셀이 바로 엽니다")
+    print("dataset.xlsx 는 23,084행이라 저장소에 올리지 않습니다 (공개 원칙: 원본 데이터 비공개)")
 
 
 def explain_cards():

@@ -11,3 +11,4 @@ data/*.log
 # data/ 는 공시 원본이라 제외하지만, manual/ 은 사람이 판정하는 작업물이라 포함한다
 !data/manual/
 !data/manual/*.csv
+results/팀원/dataset.xlsx
