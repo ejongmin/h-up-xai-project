@@ -150,23 +150,25 @@ def test_docs_match_current_split():
     2026-09-22: 분할을 바꾸고 재분석했는데 문서를 갱신하지 않아
     팀원이 옛 숫자로 작업했다. 같은 계수가 문서마다 셋이었다.
     사람이 기억하는 대신 테스트가 잡는다.
+
+    분할을 말하는 문장만 본다 — '2020~2021년 코로나' 같은 서술은 대상이 아니다.
     """
     import re
     from hup import config
     root = Path(__file__).resolve().parents[1]
-    tr, va = config.SPLIT["train"], config.SPLIT["valid"]
-    cur = {f"{tr[0]}~{tr[1]}", f"{va[0]}~{va[1]}"}
+    ok = {f"{a}~{b}" for a, b in config.SPLIT.values()}
     stale = []
     for f in list((root / "docs").glob("*.md")) + list((root / "weeks").glob("*.md")):
         if "정민재" in f.name:          # 팀원 원문은 그대로 보존한다
             continue
         for i, line in enumerate(f.read_text().splitlines(), 1):
-            if any(k in line for k in ("단독", "넓혔", "변경", "이전", "옛")):
+            if not re.search(r"(학습|검증|평가)\s*(구간)?\s*[:|]?\s*20\d\d~20\d\d", line):
+                continue
+            if any(k in line for k in ("단독", "넓혔", "변경", "이전", "옛", "→")):
                 continue
             for m in re.findall(r"20\d\d~20\d\d", line):
-                if m.startswith("20") and m not in cur and m not in ("2024~2025", "2015~2025",
-                                                                     "2016~2025", "2022~2023"):
-                    stale.append(f"{f.name}:{i}  {m}  {line.strip()[:60]}")
+                if m not in ok:
+                    stale.append(f"{f.name}:{i}  {m}  {line.strip()[:70]}")
     assert not stale, "옛 분할 표기가 남아 있다:\n  " + "\n  ".join(stale[:8])
 
 
