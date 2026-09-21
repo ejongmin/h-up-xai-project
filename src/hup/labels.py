@@ -9,6 +9,8 @@ FY2023 재무제표로 FY2023 감사의견을 맞히면 그건 예측이 아니�
 피처는 그보다 앞선 보고서에서만 가져온다. 이 규칙은 dataset.py 가 강제한다.
 """
 
+import re
+
 import pandas as pd
 
 from . import config, dart
@@ -146,19 +148,54 @@ def market_action_candidates(corp_codes, bgn_de="20150101", end_de="20261231"):
                 continue
             if not any(k in nm for k in _MKT_HIT):
                 continue
+            # 관리종목·형식적상장폐지·실질심사가 한 공시에 묶여 오는 유형이 있다.
+            # '상장폐지' 포함 여부만으로 찍으면 관리종목 건이 전부 폐지로 분류된다.
+            if "관리종목" in nm and "상장폐지" in nm:
+                kind = "시장조치(복합)"
+            elif "상장폐지" in nm:
+                kind = "상장폐지"
+            else:
+                kind = "관리종목"
             rows.append({
                 "corp_code": cc, "corp_name": d.get("corp_name", ""),
-                "event_date": d["rcept_dt"],
-                "event_type": "상장폐지" if "상장폐지" in nm else "관리종목",
-                "detail": nm, "rcept_no": d.get("rcept_no", ""),
-                "reason_is_financial": "",          # ← 사람이 채운다 (Y/N)
-                "확인필요": "Y",
+                "event_date": d["rcept_dt"], "event_type": kind,
+                "detail": re.sub(r"^\[[^]]*\]", "", nm).strip(),
+                "rcept_no": d.get("rcept_no", ""),
             })
     df = pd.DataFrame(rows)
-    if len(df):
-        df = df.sort_values(["corp_code", "event_date"]).drop_duplicates(
-            ["corp_code", "event_date", "event_type"])
-    return df
+    if not len(df):
+        return df
+    # 정정본이 별도 행으로 남는다. 같은 기업·같은 공시명이 90일 안에 반복되면 최초만 남긴다.
+    df = df.sort_values(["corp_code", "detail", "event_date"])
+    d8 = pd.to_datetime(df["event_date"], format="%Y%m%d")
+    prev = d8.groupby([df["corp_code"], df["detail"]]).shift(1)
+    df = df[(prev.isna()) | ((d8 - prev).dt.days > 90)]
+    return df.sort_values(["corp_code", "event_date"]).reset_index(drop=True)
+
+
+# 관리종목·상장폐지 사유 분류. 본문 키워드로 1차 판정하고 애매한 것만 사람에게 넘긴다.
+REASON_FIN = ("자본잠식", "자기자본", "매출액 미달", "영업손실", "감사의견",
+              "의견거절", "부적정", "한정의견", "계속기업", "부도", "당좌거래정지")
+# '상장적격성 실질심사'는 **절차**지 사유가 아니다. '사외이사'·'주주총회'는 공시 서식에
+# 모든 사유가 체크리스트로 나열돼 걸린다 — 명시적 미달 표현이 있을 때만 잡는다.
+REASON_NONFIN = ("공시불이행", "공시 불이행", "불성실공시", "사외이사 미선임",
+                 "사외이사의 수", "감사위원회 미설치", "지분분산 미달", "주식분산 미달",
+                 "자진상장폐지", "자진 상장폐지", "합병으로 인한", "신청에 의한 상장폐지")
+
+
+def classify_reason(text):
+    """본문 → ('Y'|'N'|'', 근거 키워드). 둘 다 걸리거나 아무것도 안 걸리면 사람에게."""
+    if not text:
+        return "", ""
+    fin = [k for k in REASON_FIN if k in text]
+    non = [k for k in REASON_NONFIN if k in text]
+    if fin and not non:
+        return "Y", ",".join(fin[:3])
+    if non and not fin:
+        return "N", ",".join(non[:3])
+    if fin and non:
+        return "", f"둘다({','.join(fin[:2])} / {','.join(non[:2])})"
+    return "", "키워드없음"
 
 
 def manual_events(path=None):

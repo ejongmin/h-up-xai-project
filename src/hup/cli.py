@@ -877,6 +877,7 @@ def market_actions():
 
     사유(재무/비재무) 판정만 사람이 한다 — 공시명에 안 나온다.
     """
+    import numpy as np
     from . import config, dart, labels
     uni = dart.universe()
     corps = sorted(uni)
@@ -891,13 +892,99 @@ def market_actions():
     except dart.QuotaExceeded as e:
         print(f"{e}\n  {len(done):,}사까지. 내일 같은 명령으로 이어서.")
     df = labels.market_action_candidates(done)
+    print(f"\n후보 {len(df):,}건 (정정본 중복 제거 후)")
+    print(df["event_type"].value_counts().to_string())
+
+    print("\n본문을 받아 사유를 1차 판정한다 — 애매한 것만 사람에게 넘긴다", flush=True)
+    auto, why = [], []
+    for i, r in enumerate(df.itertuples()):
+        if i % 200 == 0:
+            print(f"  {i}/{len(df)}  실호출 {dart.CALLS:,}", flush=True)
+        try:
+            a_, w_ = labels.classify_reason(dart.document(r.rcept_no))
+        except dart.QuotaExceeded:
+            print("  한도 초과 — 여기까지 판정. 내일 이어서")
+            a_, w_ = "", "미판정"
+            auto += [""] * (len(df) - len(auto)); why += ["미판정"] * (len(df) - len(why))
+            break
+        except Exception:
+            a_, w_ = "", "본문 없음"
+        auto.append(a_); why.append(w_)
+    auto += [""] * (len(df) - len(auto)); why += ["미판정"] * (len(df) - len(why))
+    df["reason_is_financial"] = auto
+    df["판정근거"] = why
+    df["확인필요"] = np.where(df["reason_is_financial"] == "", "Y", "")
+
     out = config.MANUAL / "kind_events_후보.csv"
     df.to_csv(out, index=False)
-    print(f"\n후보 {len(df):,}건 → {out}")
-    if len(df):
-        print(df["event_type"].value_counts().to_string())
-        print("\n연도별:", df["event_date"].str[:4].value_counts().sort_index().to_dict())
-        print("\n※ reason_is_financial 열을 Y/N 으로 채우면 labels.manual_events 가 읽는다")
+    n_auto = int((df["reason_is_financial"] != "").sum())
+    print(f"\n자동 판정 {n_auto:,}건 / **사람 확인 필요 {len(df)-n_auto:,}건**")
+    print(df["reason_is_financial"].replace("", "확인필요").value_counts().to_string())
+    print(f"\n→ {out}")
+    print("  확인필요 행의 reason_is_financial 만 Y/N 으로 채우고")
+    print("  파일명을 kind_events.csv 로 바꾸면 labels.manual_events 가 읽는다")
+
+
+def export():
+    """팀원용 엑셀 파일 묶음. `results/팀원/` 에 떨군다.
+
+    CSV 를 그냥 열면 엑셀에서 한글이 깨진다(BOM 이 없어서).
+    여기서 나가는 파일은 전부 utf-8-sig 라 더블클릭하면 바로 열린다.
+    """
+    import pandas as pd
+    from . import config, explain, features, pipeline
+    out = config.RESULTS / "팀원"; out.mkdir(parents=True, exist_ok=True)
+
+    def save(df, name, index=False):
+        f = out / f"{name}.csv"
+        df.to_csv(f, index=index, encoding="utf-8-sig")
+        print(f"  {name:<28} {len(df):>6,}행  {f.stat().st_size/1024:>6.0f}KB")
+
+    print("팀원용 파일 생성 (엑셀에서 바로 열림)\n")
+
+    # 1. 계수 부호 검산
+    for src, name in [("w07/계수_군집보정.csv", "1_계수와유의성"),
+                      ("w07/vif.csv", "1_VIF_변수겹침")]:
+        f = config.RESULTS / src
+        if f.exists():
+            d = pd.read_csv(f, index_col=0)
+            save(d.round(4), name, index=True)
+
+    # 2. 산업 평균 대조 — 12MB 원본 대신 비교에 필요한 요약만
+    df = pipeline.load()
+    df = df[df.rcept_dt.dt.year <= 2025]
+    cols = [c for c in features.FEATURE_COLS if c in df.columns]
+    q = df[cols].quantile([.25, .5, .75]).T
+    q.columns = ["25%", "중앙값", "75%"]
+    q["결측률"] = df[cols].isna().mean()
+    save(q.round(4), "2_재무비율_분포", index=True)
+
+    if "induty_code" in df.columns:
+        df = df.assign(업종2=df["induty_code"].astype(str).str[:2])
+        big = df["업종2"].value_counts().head(15).index
+        g = (df[df.업종2.isin(big)].groupby("업종2")[
+             ["부채비율", "유동비율", "이자보상배율", "ROA", "영업이익률"]].median())
+        g.insert(0, "관측치", df[df.업종2.isin(big)].groupby("업종2").size())
+        save(g.round(4), "2_업종별_비율중앙값", index=True)
+
+    # 3. 관리종목 사유 판정
+    f = config.MANUAL / "kind_events_후보.csv"
+    if f.exists():
+        d = pd.read_csv(f, dtype=str)
+        d["원문주소"] = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=" + d["rcept_no"]
+        need = d[d["reason_is_financial"].fillna("") == ""]
+        save(d, "3_관리종목_전체")
+        save(need, "3_관리종목_확인필요")
+
+    # 4. 설명 카드 문안
+    ph = pd.DataFrame(
+        [{"변수": k, "위험 쪽 문장": v[0], "안전 쪽 문장": v[1], "단위": v[2],
+          "카드에 씀": "" if explain._card_excluded(k) else "○"}
+         for k, v in explain.PHRASE.items()])
+    save(ph, "4_설명카드_문안")
+
+    print(f"\n저장 위치: {out}")
+    print("전부 utf-8-sig — 파인더에서 더블클릭하면 엑셀이 바로 엽니다")
 
 
 def explain_cards():
@@ -910,7 +997,7 @@ def explain_cards():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "explain": explain_cards}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "export": export, "explain": explain_cards}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:

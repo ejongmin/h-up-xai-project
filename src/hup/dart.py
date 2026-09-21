@@ -356,3 +356,55 @@ def extension_filers(filing_years):
             if k not in out or d["rcept_dt"] < out[k]:
                 out[k] = d["rcept_dt"]
     return out
+
+
+def _clean_html(raw):
+    """공시 본문에서 읽을 수 있는 글자만 남긴다.
+
+    2026-09-22: 태그만 지우고 <style> 안의 CSS 는 남겨서, 앞 2만 자가 전부
+    스타일시트였다. 사유 분류가 'CSS 를 읽고 키워드 없음'으로 나왔다.
+    스크립트·스타일 블록을 **내용째** 먼저 지운다.
+    """
+    for enc in ("utf-8", "euc-kr", "cp949"):
+        try:
+            t = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        return ""
+    t = re.sub(r"<(style|script)\b[^>]*>.*?</\1>", " ", t, flags=re.S | re.I)
+    t = re.sub(r"<!--.*?-->", " ", t, flags=re.S)
+    t = re.sub(r"<[^>]+>", " ", t)
+    t = re.sub(r"&[a-zA-Z#0-9]+;", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def document(rcept_no, max_chars=30000):
+    """공시 본문 텍스트. **원문을 캐시하고 파싱은 읽을 때 한다** —
+    파서를 고쳐도 다시 받지 않아도 된다."""
+    cf = config.CACHE / f"docraw_{rcept_no}.json"
+    if cf.exists():
+        hit = _read_cache(cf)
+        if hit is not None:
+            return _clean_html(hit["raw"].encode("utf-8", "replace"))[:max_chars]
+    global CALLS
+    url = BASE + "document.xml?" + urllib.parse.urlencode(
+        {"crtfc_key": config.DART_KEY, "rcept_no": rcept_no})
+    blob = _open(url, timeout=60)
+    CALLS += 1
+    time.sleep(SLEEP)
+    raw = ""
+    try:
+        with zipfile.ZipFile(io.BytesIO(blob)) as z:
+            body = z.read(z.namelist()[0])
+        for enc in ("utf-8", "euc-kr", "cp949"):
+            try:
+                raw = body.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+    except Exception:
+        raw = ""
+    _write_cache(cf, {"raw": raw[:200000]})
+    return _clean_html(raw.encode("utf-8", "replace"))[:max_chars]
