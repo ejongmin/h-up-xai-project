@@ -187,6 +187,98 @@ def test_card_handles_negative_equity():
     assert "벌어들이는 이익이 적습니다" in txt, "해석 가능한 변수는 그대로 남아야 한다"
 
 
+def test_counterfactual_rules():
+    """반사실은 카드와 같은 모형·같은 제외 규칙을 따르고, 미미한 변화는 싣지 않는다."""
+    from hup import explain
+
+    class Stub:
+        """부채비율이 낮아지면 확률이 크게, 유동비율은 아주 조금 떨어지는 가짜 모형."""
+        def predict_proba(self, X):
+            r = X.iloc[0]
+            p = 0.9 - 0.4 * (r["부채비율"] < 3) - 0.01 * (r["유동비율"] > 1)
+            return np.array([[1 - p, p]])
+
+    cols = ["부채비율", "유동비율"]
+    row = pd.Series({"부채비율": 8.0, "유동비율": 0.3})
+    ref = pd.Series({"부채비율": 1.2, "유동비율": 1.5})
+    base, items = explain.counterfactual(Stub(), row, cols, cols, ref)
+    got = [n for n, *_ in items]
+    # 자본잠식은 '표본 중앙값'이 아니라 '해소(0)'가 목표여야 한다
+    assert explain.cf_target("자본잠식률", ref)[0] == 0.0
+    assert "해소" in explain.cf_target("자본잠식률", ref)[1]
+    assert "부채비율" in got, "큰 하락은 실려야 한다"
+    assert "유동비율" not in got, "1%p 하락은 보여줄 값이 없다"
+
+    _, items2 = explain.counterfactual(Stub(), row, cols, cols, ref,
+                                       skip=explain.EQUITY_BASED)
+    assert all(n not in explain.EQUITY_BASED for n, *_ in items2)
+
+
+def test_audit_response_keeps_only_current_period():
+    """이 API 는 당기·전기·전전기를 같은 rcept_no 로 준다. 셋 다 쓰면 유령 사건이 생긴다."""
+    from hup import labels
+    # 2026-09-03 삼성전자 실제 응답 서식 (개행·공백 변형 포함)
+    rows = [{"bsns_year": "제55기\n(당기)", "adt_opinion": "적정", "rcept_no": "20240312000736"},
+            {"bsns_year": "제54기\n(전기)", "adt_opinion": "의견거절", "rcept_no": "20240312000736"},
+            {"bsns_year": "제53기  (전전기)", "adt_opinion": "한정", "rcept_no": "20240312000736"}]
+    cur = labels.current_period(rows)
+    assert cur["adt_opinion"] == "적정", "전기·전전기 의견이 당기로 새어 들어왔다"
+    assert labels.current_period([{"bsns_year": "제75기(당기)", "adt_opinion": "부적정"}])["adt_opinion"] == "부적정"
+    assert labels.current_period([]) is None
+
+
+def test_exclusions_do_not_catch_meritz():
+    """'리츠'를 부분문자열로 잡으면 메리츠금융지주가 리츠가 된다."""
+    panel = pd.DataFrame({"corp_code": ["A", "B", "C", "D"], "bsns_year": [2023] * 4})
+    meta = pd.DataFrame({
+        "corp_code": ["A", "B", "C", "D"],
+        "corp_name": ["메리츠금융지주", "케이탑리츠", "한화에이스기업인수목적2호", "삼성전자"],
+        "induty_code": ["64992", "68112", "661", "26410"],
+        "acc_mt": ["12", "12", "12", "12"]})
+    kept, dropped = dataset.apply_exclusions(panel, meta)
+    why = dict(zip(dropped["corp_code"], dropped["_excl"]))
+    assert why["A"] == "금융업", "메리츠는 금융업이지 리츠가 아니다"
+    assert why["B"] == "스팩/리츠"
+    assert why["C"] == "스팩/리츠", "스팩은 업종코드 661 이라 금융업으로 먼저 걸리면 사유가 틀린다"
+    assert kept["corp_code"].tolist() == ["D"]
+
+
+def test_opinion_classification():
+    """실측 표기 변형들. '부적정'이 '적정'을 포함한다는 게 함정이다."""
+    from hup import labels
+    for t in ["의견거절", "거절", "한정", "한정의견", "부적정의견", "한정(감사범위제한)",
+              "감사범위제한으로인한한정", "(별도)의견거절(주3)\n(연결)의견거절(주4)"]:
+        assert labels.classify_opinion(t) == "비적정", t
+    for t in ["적정", "적정의견", "연결:적정 별도:적정", "적정(공정)", "공정",
+              "예외사항없음", "지적사항없음", "적정 (별도/연결)"]:
+        assert labels.classify_opinion(t) == "적정", t
+    for t in ["", None, "   ", "삼정회계법인", "(주1)"]:
+        assert labels.classify_opinion(t) == "불명", repr(t)
+
+
+def test_winsorize_spares_binary_flags():
+    """희귀 이진 지표를 분위 클리핑하면 변수 자체가 사라진다."""
+    rng = np.random.default_rng(0)
+    tr = pd.DataFrame({"부채비율": rng.normal(2, .5, 1000),
+                       "완전자본잠식": (rng.random(1000) < 0.005).astype(float)})
+    st = dataset.fit_clean(tr, cols=["부채비율", "완전자본잠식"])
+    assert "완전자본잠식" in st["binary"] and "부채비율" in st["clip"]
+    out = dataset.apply_clean(tr, st)
+    assert out["완전자본잠식"].nunique() == 2, "이진 플래그가 상수로 뭉개졌다"
+
+
+def test_corp_code_stays_a_string(tmp=None):
+    """고유번호는 8자리 문자열이다. 정수로 읽히면 앞자리 0 이 날아간다."""
+    import tempfile, os
+    from hup import pipeline
+    d = pd.DataFrame({"corp_code": ["00126380", "01087079"], "bsns_year": [2023, 2023],
+                      "rcept_dt": pd.to_datetime(["2024-03-12", "2024-03-20"]), "y": [0, 1]})
+    with tempfile.TemporaryDirectory() as t:
+        f = os.path.join(t, "d.csv"); d.to_csv(f, index=False)
+        back = pipeline.load(f)
+    assert back["corp_code"].tolist() == ["00126380", "01087079"]
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

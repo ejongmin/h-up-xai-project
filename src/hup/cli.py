@@ -1020,7 +1020,7 @@ def cards_v2():
     df = pipeline.load()
     s_, rep, fin, _ = pipeline._prepare(df)
     use = pipeline._with_flags(s_, fin)
-    tr, va = s_["train"], s_["valid"]
+    tr = s_["train"]
     est = model.ensemble().fit(tr[use], tr["y"])
     res = {"splits": s_, "cols": use, "fits": {"앙상블": est}}
 
@@ -1055,6 +1055,54 @@ def cards_v2():
     print(f"저장: {out}")
 
 
+def threshold():
+    """임계값 선정 근거. '상위 5%'는 임의로 정한 값이었다 — 근거를 만든다.
+
+    실무는 확률 컷이 아니라 **심사 여력**으로 정한다.
+    "주당 N건을 볼 수 있다"에서 출발해 그때의 정밀도·재현율을 보여준다.
+    **검증 구간에서만** 판단한다.
+    """
+    import numpy as np
+    import pandas as pd
+    from . import config, model, pipeline
+    df = pipeline.load()
+    s_, rep, fin, _ = pipeline._prepare(df)
+    use = pipeline._with_flags(s_, fin)
+    tr, va = s_["train"], s_["valid"]
+    est = model.ensemble().fit(tr[use], tr["y"])
+    p = est.predict_proba(va[use])[:, 1]
+    y = va["y"].to_numpy()
+    n, ev = len(y), int(y.sum())
+    print(f"검증 구간 {n:,}사 · 사건 {ev}건 ({y.mean():.2%})")
+    print("2년치이므로 연 {:,.0f}사를 심사한다고 보면 된다\n".format(n / 2))
+
+    order = np.argsort(-p)
+    rows = []
+    for pct in (1, 2, 3, 5, 10, 15, 20):
+        k = max(1, int(n * pct / 100))
+        sel = order[:k]
+        tp = int(y[sel].sum())
+        rows.append({
+            "상위 %": pct, "선별 기업수": k, "연 심사건수": round(k / 2),
+            "주당": round(k / 2 / 52, 1),
+            "잡은 사건": tp, "놓친 사건": ev - tp,
+            "정밀도": round(tp / k, 3), "재현율": round(tp / ev, 3),
+            "헛짚음(오탐)": k - tp,
+        })
+    t = pd.DataFrame(rows)
+    print(t.to_string(index=False))
+    out = config.RESULTS / "w14"; out.mkdir(parents=True, exist_ok=True)
+    t.to_csv(out / "임계값_선정근거.csv", index=False, encoding="utf-8-sig")
+
+    print("\n읽는 법 — 실무 질문으로 바꾸면")
+    for r in rows:
+        if r["상위 %"] in (2, 5, 10):
+            print(f"  상위 {r['상위 %']}% 를 보면 심사역이 주당 {r['주당']}건을 보고, "
+                  f"{r['잡은 사건']}건을 잡고 {r['놓친 사건']}건을 놓치며 "
+                  f"{r['헛짚음(오탐)']}건을 헛짚는다")
+    print(f"\n저장: {out}/임계값_선정근거.csv")
+
+
 def explain_cards():
     from . import pipeline
     res = pipeline.train()
@@ -1065,7 +1113,7 @@ def explain_cards():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "export": export, "cards": cards_v2, "explain": explain_cards}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "export": export, "cards": cards_v2, "threshold": threshold, "explain": explain_cards}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:

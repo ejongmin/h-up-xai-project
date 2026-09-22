@@ -85,6 +85,8 @@ def build(horizon=None, include_secondary=False):
     dropped.to_csv(config.PROCESSED / "excluded.csv", index=False)
     ev.to_csv(config.PROCESSED / "events.csv", index=False)
 
+    _write_manifest(df)
+
     sens = {}
     for h in config.HORIZON_SENSITIVITY:
         d = dataset.attach_labels(kept, ev, horizon_days=h)
@@ -190,10 +192,16 @@ def cards(res, n=5, part="test"):
                 shown = shown.iloc[0]
         except KeyError:
             shown = X.iloc[i]
+        top = [n for n, _ in pd.Series(sv[i], index=use).sort_values(ascending=False).items()
+               if n in allow and not explain._card_excluded(n)][:6]
+        # 자본이 음(-)이면 자본 기반 비율은 반사실에서도 뺀다 (카드 본문과 같은 규칙)
+        skip = explain.EQUITY_BASED if explain._equity_wiped(shown) else ()
+        # 반사실도 **카드에 찍는 확률과 같은 보정 모형**으로 계산한다
+        base, items = explain.counterfactual(cal, X.iloc[i], use, top, ref, skip=skip)
         out.append({"corp_code": cc, "bsns_year": by,
                     "y": int(y.iloc[i]), "prob": float(p[i]),
                     "card": explain.card(shown, sv[i], use, allow=allow, prob=float(p[i]),
-                                         ref=ref)})
+                                         ref=ref, cf=explain.counterfactual_lines(base, items))})
     return out, allow
 
 
@@ -228,3 +236,35 @@ def label_loss_by_extension(df, uni, horizon=None):
             "창초과_건수": int(gap["창초과"].sum()),
             "창초과_비율": float(gap["창초과"].mean()),
             "연장여부별_창초과율": by}
+
+
+def _write_manifest(df):
+    """데이터셋 스냅샷 지문. 보고서 수치가 어느 데이터에서 나왔는지 대조하는 용도다.
+
+    docs/99 에 "본문 수치마다 출처 커밋·데이터 스냅샷 표기"라고 써두고 하지 않았다.
+    사람이 기억하는 대신 build 가 매번 남긴다.
+    """
+    import datetime as dt
+    import hashlib
+    import json
+    import subprocess
+    f = config.PROCESSED / "dataset.csv"
+    h = hashlib.sha256(f.read_bytes()).hexdigest()[:16] if f.exists() else ""
+    try:
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=config.ROOT,
+                                capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        commit = ""
+    m = {
+        "생성": dt.datetime.now().isoformat(timespec="seconds"),
+        "커밋": commit,
+        "dataset.csv sha256(16)": h,
+        "관측치": int(len(df)),
+        "사건": int(df["y"].sum()),
+        "사건비율": round(float(df["y"].mean()), 4),
+        "예측창": config.HORIZON_DAYS,
+        "분할": {k: list(v) for k, v in config.SPLIT.items()},
+    }
+    (config.PROCESSED / "MANIFEST.json").write_text(
+        json.dumps(m, ensure_ascii=False, indent=2))
+    return m

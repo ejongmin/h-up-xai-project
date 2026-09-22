@@ -167,7 +167,73 @@ def _card_excluded(name):
     return name.endswith("_결측") or name.startswith("Δ") or name.endswith("증가율")
 
 
-def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None):
+def counterfactual(model, X_row, cols, names, ref, n=3, min_drop=0.05, skip=()):
+    """"이 항목이 표본 중앙값 수준이면 확률이 얼마가 되는가"
+
+    카드는 왜 위험한지만 말하고 **무엇을 보면 되는지**는 말하지 않는다.
+    여신심사에서 쓰이려면 이쪽이 필요하다. 삭제 검사와 같은 기계를 쓰되
+    지우는 게 아니라 **정상 수준으로 되돌린다**.
+
+    규칙 셋 (2026-09-22 실측에서 고침)
+      - `model` 은 **카드에 찍는 확률과 같은 모형**이어야 한다. 보정본과 비보정을
+        섞으면 카드 머리의 57.7% 와 반사실의 89.8% 가 따로 논다.
+      - 자본이 음(-)인 기업의 자본 기반 비율은 제외한다(`skip`). 위에서 제외해놓고
+        반사실로 다시 꺼내면 모순이다.
+      - 하락폭이 min_drop 미만이면 싣지 않는다. 1.9%p 차이는 보여줄 값이 없다.
+
+    주의: 인과 효과가 아니라 **모형이 그렇게 반응한다**는 서술이다.
+    """
+    base = float(model.predict_proba(X_row.to_frame().T[cols])[0, 1])
+    out = []
+    for nm in names:
+        if nm in skip or nm not in cols:
+            continue
+        target, phrase = cf_target(nm, ref)
+        if target is None:
+            continue
+        z = X_row.copy()
+        z[nm] = target
+        p = float(model.predict_proba(z.to_frame().T[cols])[0, 1])
+        if base - p >= min_drop:
+            out.append((nm, base, p, target, phrase))
+    out.sort(key=lambda r: r[2])
+    return base, out[:n]
+
+
+# 변수마다 '정상 수준'의 뜻이 다르다. 자본잠식은 중앙값이 아니라 **해소(0%)** 가 기준이고,
+# 중앙값 −829.7% 를 목표로 제시하면 실무 문장이 되지 않는다.
+CF_TARGET = {
+    "자본잠식률": (0.0, "자본잠식이 해소되면"),
+    "영업손실": (0.0, "영업이익으로 돌아서면"),
+    "2년연속영업손실": (0.0, "연속 영업손실에서 벗어나면"),
+    "자본잠식": (0.0, "자본잠식이 해소되면"),
+    "완전자본잠식": (0.0, "자본총계가 양(+)으로 돌아서면"),
+}
+
+
+def cf_target(name, ref):
+    """반사실 목표값과 문구. 지정이 없으면 표본 중앙값."""
+    if name in CF_TARGET:
+        v, phrase = CF_TARGET[name]
+        return v, phrase
+    if name in ref and not pd.isna(ref[name]):
+        _, _, unit = PHRASE.get(name, ("", "", ""))
+        tv = format_value(name, ref[name], unit).strip(" ()").replace("실측 ", "")
+        return float(ref[name]), f"{name}이(가) 표본 중앙값({tv}) 수준이면"
+    return None, None
+
+
+def counterfactual_lines(base, items):
+    """반사실 결과를 카드 문장으로."""
+    if not items:
+        return []
+    lines = ["무엇이 달라지면 (모형 기준 — 인과 효과가 아닙니다)"]
+    for nm, b, p, _target, phrase in items:
+        lines.append(f"  - {phrase} 부실확률 {b:.1%} → {p:.1%}")
+    return lines
+
+
+def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None, cf=None):
     """한 기업-연도에 대한 설명 카드(문자열).
 
     묶음(위험을 높인/낮춘)은 SHAP 부호로 정하고, 문장은 **관측값**으로 정한다.
@@ -205,4 +271,6 @@ def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None):
     # 낮춘 요인이 없으면 **없다고 적는다** — 조용히 빼면 한쪽만 보여주는 게 된다.
     out += (["위험을 낮춘 요인", *[line(n, c) for n, c in down.items()]] if len(down)
             else ["위험을 낮춘 요인", "  - 해당 없음 (안정 변수 중 위험을 낮춘 항목이 없습니다)"])
+    if cf:
+        out += cf
     return "\n".join(out)
