@@ -393,8 +393,13 @@ ROA 도 음수다. 감사인도 그 재무제표를 보고 강조사항을 쓴�
 - `cli.explain` 단계 제거 — corp_code 와 확률을 함께 찍었고 `cards` 가 상위호환이다
 - **`test_no_named_company_with_risk_score_committed`** 추가:
   커밋된 CSV 에 기업명 열과 확률 열이 함께 있으면 실패한다
-- ⚠️ **git 이력에는 남아 있다.** HEAD 에서 지워도 과거 커밋에서 조회 가능하다.
-  이력 재작성은 파괴적이라 사용자 판단이 필요하다.
+- **git 이력 재작성 완료 (2026-09-22).** `git filter-repo --invert-paths` 로
+  세 커밋(8123620·dae8458·8a24c5f)에서 해당 파일을 제거하고 강제 푸시했다.
+  백업: `~/Desktop/h-up/backup-before-rewrite.bundle`. 커밋 14개는 모두 보존.
+  원격 전수 검증 — 최신 트리·과거 커밋 어디에도 없다.
+  **잔여 위험**: ① GitHub 서버 고아 객체가 일정 기간 남을 수 있다(SHA 직접 조회).
+  ② 이미 클론한 사본에는 남는다 → 정민재 학우에게 재클론 또는
+  `git fetch origin && git reset --hard origin/main` 을 안내할 것.
 
 **그 외 감사 결과**
 - 커밋 간 파일 축소: 테스트 5개 삭제 건(8123620) 외에 **추가 사고 없음**
