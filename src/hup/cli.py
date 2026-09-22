@@ -1006,6 +1006,55 @@ def export():
     print("dataset.xlsx 는 23,084행이라 저장소에 올리지 않습니다 (공개 원칙: 원본 데이터 비공개)")
 
 
+def cards_v2():
+    """14주차: 개정 후 카드 생성 + 개정 전후 비교표.
+
+    "피드백을 반영해 개선했다"는 문장만으로는 아무것도 증명하지 못한다.
+    무엇이 왜 바뀌었는지 표로 남긴다.
+    """
+    import numpy as np
+    import pandas as pd
+    from . import config, explain, model, pipeline
+    out = config.RESULTS / "w14"; out.mkdir(parents=True, exist_ok=True)
+
+    df = pipeline.load()
+    s_, rep, fin, _ = pipeline._prepare(df)
+    use = pipeline._with_flags(s_, fin)
+    tr, va = s_["train"], s_["valid"]
+    est = model.ensemble().fit(tr[use], tr["y"])
+    res = {"splits": s_, "cols": use, "fits": {"앙상블": est}}
+
+    print("=" * 70)
+    print("[1] 개정 전후 비교표")
+    rows = []
+    for name, (risky, safe, unit) in explain.PHRASE.items():
+        if explain._card_excluded(name):
+            continue
+        v = float(tr[name].median()) if name in tr.columns else np.nan
+        before = "" if (name in explain.FLAGS or pd.isna(v)) else f" (실측 {v:,.2f})"
+        after = "" if name in explain.FLAGS else explain.format_value(name, v, unit)
+        if before.strip() != after.strip():
+            rows.append({"변수": name, "문장": risky,
+                         "개정 전 표기": before.strip(" ()"), "개정 후 표기": after.strip(" ()"),
+                         "왜": "로그값 → 억원 환산" if name == "로그자산"
+                               else ("소수 → 백분율" if name in explain.PCT else "단위 명시")})
+    t = pd.DataFrame(rows)
+    print(t.to_string(index=False))
+    t.to_csv(out / "카드문안_개정전후.csv", index=False, encoding="utf-8-sig")
+
+    print("\n" + "=" * 70)
+    print("[2] 개정 후 카드 — 검증 구간 위험 상위 3건")
+    cards, allow = pipeline.cards(res, n=3, part="valid")
+    lines = []
+    for c in cards:
+        head = f"--- 익명 사례 (FY{c['bsns_year']}, 실제 사건 {c['y']})"
+        print(f"\n{head}"); print(c["card"])
+        lines += [head, c["card"], ""]
+    (out / "카드_개정후.txt").write_text("\n".join(lines))
+    print(f"\n안정 변수 {len(allow)}개가 카드 후보")
+    print(f"저장: {out}")
+
+
 def explain_cards():
     from . import pipeline
     res = pipeline.train()
@@ -1016,7 +1065,7 @@ def explain_cards():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "export": export, "explain": explain_cards}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "export": export, "cards": cards_v2, "explain": explain_cards}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:

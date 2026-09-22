@@ -172,6 +172,21 @@ def test_docs_match_current_split():
     assert not stale, "옛 분할 표기가 남아 있다:\n  " + "\n  ".join(stale[:8])
 
 
+def test_card_handles_negative_equity():
+    """완전자본잠식 기업에 '부채비율이 낮아 안전하다'고 쓰면 안 된다."""
+    from hup import explain
+    cols = ["부채비율", "자기자본비율", "ROA", "재고자산회전율"]
+    row = pd.Series({"부채비율": -2.52, "자기자본비율": -0.656,
+                     "ROA": -0.936, "재고자산회전율": 9.0})
+    ref = pd.Series({"부채비율": 1.2, "자기자본비율": 0.59,
+                     "ROA": 0.02, "재고자산회전율": 6.0})
+    txt = explain.card(row, np.array([-0.4, -0.3, 0.9, 0.2]), cols, ref=ref, prob=0.58)
+    assert "완전 자본잠식" in txt, "자본이 음수라는 사실을 카드가 말해야 한다"
+    assert "부채비율이 낮은 편입니다" not in txt
+    assert "자기자본이 두텁습니다" not in txt
+    assert "벌어들이는 이익이 적습니다" in txt, "해석 가능한 변수는 그대로 남아야 한다"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

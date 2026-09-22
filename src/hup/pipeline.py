@@ -168,17 +168,31 @@ def cards(res, n=5, part="test"):
     # 트리 구조가 있어야 TreeExplainer 가 돈다.
     cal = model.calibrated(model.ensemble, "isotonic")
     cal.fit(res["splits"]["train"][use], res["splits"]["train"]["y"])
+    # 안정 변수를 **전부** 넘긴다. 상위 10개만 넘기면 그 10개가 기여도 순이라
+    # 위험 상위 기업에서는 전부 위험을 올리는 쪽이고, '위험을 낮춘 요인'이 늘 비게 된다.
+    # 상위 4개·하위 2개 선정은 card() 가 한다.
     allow = explain.stable_features(lambda random_state: model.ensemble(random_state=random_state),
-                                    res["splits"]["train"][use], res["splits"]["train"]["y"])
+                                    res["splits"]["train"][use], res["splits"]["train"]["y"],
+                                    top=len(use))
     ref = res["splits"]["train"][use].median()
     p = cal.predict_proba(X)[:, 1]          # 보여줄 확률
     rank = est.predict_proba(X)[:, 1]        # 상위 선정은 보정 전 순위로 (동점 방지)
     sv = explain.shap_values(est, X)
+    # 카드에 찍는 '실측'은 **정제 전 원본**이어야 한다. 정제본은 1/99 분위로 클리핑돼
+    # 극단 기업들이 전부 같은 값(경계값)을 갖는다 — 그걸 실측이라 적으면 거짓말이 된다.
+    raw = load().set_index(["corp_code", "bsns_year"])
     out = []
     for i in np.argsort(-rank)[:n]:
-        out.append({"corp_code": s.iloc[i]["corp_code"], "bsns_year": int(s.iloc[i]["bsns_year"]),
+        cc, by = s.iloc[i]["corp_code"], int(s.iloc[i]["bsns_year"])
+        try:
+            shown = raw.loc[(cc, by)]
+            if hasattr(shown, "iloc") and getattr(shown, "ndim", 1) > 1:
+                shown = shown.iloc[0]
+        except KeyError:
+            shown = X.iloc[i]
+        out.append({"corp_code": cc, "bsns_year": by,
                     "y": int(y.iloc[i]), "prob": float(p[i]),
-                    "card": explain.card(X.iloc[i], sv[i], use, allow=allow, prob=float(p[i]),
+                    "card": explain.card(shown, sv[i], use, allow=allow, prob=float(p[i]),
                                          ref=ref)})
     return out, allow
 
