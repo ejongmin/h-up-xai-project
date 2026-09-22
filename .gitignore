@@ -12,3 +12,4 @@ data/*.log
 !data/manual/
 !data/manual/*.csv
 results/팀원/dataset.xlsx
+results/w12/오분류_사례.csv

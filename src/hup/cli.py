@@ -686,15 +686,18 @@ def w12():
             emph = (ao.get("emphs_matter") or "").replace("\n", " ").strip()
             gc = any(k in emph for k in labels.GOING_CONCERN)
             rows.append({
-                "유형": label, "기업": names.get(cc, cc)[:14], "FY": y,
+                # 실명 + 위험도 수치를 같은 표에 두지 않는다 (지원서 공개 원칙).
+                # 화면에서는 작업용으로 보되 저장본은 익명 번호만 남긴다.
+                "유형": label, "사례": f"{label}-{len([x for x in rows if x['유형']==label])+1:02d}",
+                "_기업": names.get(cc, cc)[:14], "FY": y,
                 "확률": round(float(r["p"]), 4), "실제": int(r["y"]),
                 "감사의견": labels.classify_opinion(ao.get("adt_opinion")),
                 "계속기업언급": "○" if gc else "",
                 "강조사항": (emph[:60] + "…") if len(emph) > 60 else emph,
             })
     t = pd.DataFrame(rows)
-    print(t.drop(columns=["강조사항"]).to_string(index=False))
-    t.to_csv(out / "오분류_사례.csv", index=False)
+    print(t.drop(columns=["강조사항"]).to_string(index=False))   # 화면은 작업용
+    t.drop(columns=["_기업"]).to_csv(out / "오분류_사례.csv", index=False)   # 저장본은 익명
 
     print("\n" + "=" * 70)
     print("[진단] 미탐 기업의 직전 보고서에 이미 신호가 있었는가")
@@ -715,7 +718,7 @@ def w12():
         print(f"\n--- {names.get(r['corp_code'], r['corp_code'])[:14]} FY{int(r['bsns_year'])}"
               f"  확률 {r['p']:.1%} (실제 사건)")
         print(explain.card(va[use].iloc[i], sv[i], use, allow=allow, ref=ref, top_k=3))
-        row = t[(t.기업 == names.get(r["corp_code"], r["corp_code"])[:14]) & (t.FY == int(r["bsns_year"]))]
+        row = t[(t._기업 == names.get(r["corp_code"], r["corp_code"])[:14]) & (t.FY == int(r["bsns_year"]))]
         if len(row):
             e = row.iloc[0]["강조사항"]
             print(f"  감사인 강조사항: {e or '(없음)'}")
@@ -1103,17 +1106,8 @@ def threshold():
     print(f"\n저장: {out}/임계값_선정근거.csv")
 
 
-def explain_cards():
-    from . import pipeline
-    res = pipeline.train()
-    out, allow = pipeline.cards(res)
-    print(f"안정 변수 {len(allow)}개: {allow}\n")
-    for c in out:
-        print(f"--- {c['corp_code']} FY{c['bsns_year']} (실제 {c['y']})\n{c['card']}\n")
-
-
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "export": export, "cards": cards_v2, "threshold": threshold, "explain": explain_cards}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "export": export, "cards": cards_v2, "threshold": threshold}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:

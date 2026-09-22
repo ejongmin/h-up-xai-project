@@ -279,6 +279,42 @@ def test_corp_code_stays_a_string(tmp=None):
     assert back["corp_code"].tolist() == ["00126380", "01087079"]
 
 
+def test_no_named_company_with_risk_score_committed():
+    """커밋 대상 파일에 '기업 실명 + 모델 위험도 수치'가 함께 있으면 실패한다.
+
+    지원서 공개 원칙: "실명 기업의 개별 위험도 수치는 공개하지 않고
+    분석 방법론과 익명화된 사례만 제시한다."
+
+    2026-09-22: results/w12/오분류_사례.csv 가 기업명과 부실확률을 함께 담은 채
+    공개 저장소에 올라가 있었다. 원칙을 계획 단계부터 적어두고도 어겼다.
+    """
+    import csv
+    import subprocess
+    root = Path(__file__).resolve().parents[1]
+    try:
+        tracked = subprocess.run(["git", "ls-files", "*.csv"], cwd=root,
+                                 capture_output=True, text=True, timeout=10).stdout.split()
+    except Exception:
+        return                                   # git 이 없으면 검사 생략
+    NAME = ("기업", "corp_name", "종목명", "회사명")
+    SCORE = ("확률", "prob", "위험도", "score", "부실확률", "예측")
+    bad = []
+    for rel in tracked:
+        f = root / rel
+        if not f.exists():
+            continue
+        try:
+            head = next(csv.reader(f.open(encoding="utf-8-sig")))
+        except Exception:
+            continue
+        cols = [c.strip() for c in head]
+        has_name = any(any(k in c for k in NAME) for c in cols)
+        has_score = any(any(k in c for k in SCORE) for c in cols)
+        if has_name and has_score:
+            bad.append(f"{rel}  {cols}")
+    assert not bad, "실명+위험도 수치가 함께 커밋돼 있다:\n  " + "\n  ".join(bad)
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
