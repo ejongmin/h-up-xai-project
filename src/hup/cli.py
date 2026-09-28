@@ -288,7 +288,6 @@ def tabpfn():
     평가 구간은 이미 닫혔으므로 여기서 이겨도 최종 성능을 갈아끼우지 않는다.
     """
     import time
-    import numpy as np
     import pandas as pd
     from . import config, model, pipeline
     df = pipeline.load()
@@ -338,7 +337,6 @@ def rolling():
     **새 폴더에서 평가 구간을 다시 여는 것과는 다르다.** 오염되는 것은 폴더가 아니라
     분석자의 지식이다. 이미 본 구간으로 다시 고르면 폴더가 어디든 선택 편의다.
     """
-    import numpy as np
     import pandas as pd
     from . import config, dataset, model, pipeline
     df = pipeline.load()
@@ -385,7 +383,6 @@ def classic():
     우리 데이터에 없는 항(이익잉여금·시가총액)은 대체했으므로 **점수 값 자체는 해석하지 않고
     순위 성능(PR-AUC)만 비교한다.** '형(form)'이라 부르는 이유다.
     """
-    import numpy as np
     import pandas as pd
     from . import config, model, pipeline
     df = pipeline.load()
@@ -437,7 +434,6 @@ def robust():
     비슷하면 '라벨 정의에 우연히 맞춘 모델'이 아님을 보일 수 있다.
     **검증 구간에서만** 판단한다.
     """
-    import numpy as np
     import pandas as pd
     from . import config, dataset, labels, model, pipeline
     man = labels.manual_events()

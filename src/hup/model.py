@@ -132,7 +132,6 @@ def ohlson_o(df):
     원식 9개 변수 중 GNP 물가지수 보정 항과 규모 항은 우리 변수로 대체한다.
     Altman 과 같은 이유로 **'Ohlson 형'이라 부르고 값 자체를 해석하지 않는다.**
     """
-    import numpy as np
     z = (-1.32
          - 0.407 * df["로그자산"]
          + 6.03 * (df["liabilities_ratio"] if "liabilities_ratio" in df else
