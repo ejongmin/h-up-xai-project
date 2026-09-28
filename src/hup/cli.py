@@ -279,6 +279,56 @@ def eda():
     print(f"\n저장: {out}")
 
 
+def robust():
+    """보조 정의 강건성 검증 (docs/01 §2.2).
+
+    주 정의(감사의견 비적정 + 회생절차)로 만든 모델이 보조 정의
+    (+ 재무 사유 관리종목·상장폐지)에서도 비슷하게 작동하는지 본다.
+    비슷하면 '라벨 정의에 우연히 맞춘 모델'이 아님을 보일 수 있다.
+    **검증 구간에서만** 판단한다.
+    """
+    import numpy as np
+    import pandas as pd
+    from . import config, dataset, labels, model, pipeline
+    man = labels.manual_events()
+    print(f"보조 사건(재무 사유 관리종목·상장폐지) {len(man):,}건")
+    if not len(man):
+        print("  data/manual/kind_events.csv 가 없거나 reason_is_financial 이 비어 있다"); return
+
+    kept, _ = dataset.apply_exclusions(pipeline.panel(), pipeline.meta())
+    corps = kept["corp_code"].unique().tolist()
+    base_ev = labels.build(corps, config.YEARS, "20150101", "20261231", False)
+    both_ev = labels.build(corps, config.YEARS, "20150101", "20261231", True)
+    print(f"주 정의 사건 {len(base_ev):,}건 → 보조 포함 {len(both_ev):,}건")
+
+    rows = []
+    for name, ev in (("주 정의", base_ev), ("보조 포함", both_ev)):
+        d = dataset.attach_labels(kept, ev)
+        s_, rep, fin, _ = pipeline._prepare(d)
+        use = pipeline._with_flags(s_, fin)
+        m = model.ensemble().fit(s_["train"][use], s_["train"]["y"])
+        p = m.predict_proba(s_["valid"][use])[:, 1]
+        r = model.evaluate(s_["valid"]["y"], p, n_boot=400)
+        rows.append({"라벨": name, "관측치": len(d), "사건": int(d["y"].sum()),
+                     "사건비율": round(float(d["y"].mean()), 4),
+                     "PR-AUC": round(r["PR-AUC"], 4), "95%CI": r["PR-AUC_95CI"],
+                     "기준선대비": round(r["PR-AUC"] / s_["valid"]["y"].mean(), 1),
+                     "재현율@정밀도0.3": round(r["재현율@정밀도0.3"], 3)})
+    t = pd.DataFrame(rows)
+    print(); print(t.to_string(index=False))
+
+    # 두 라벨이 얼마나 겹치는가 — 겹치면 강건성 검증이 되지 않는다
+    d1 = dataset.attach_labels(kept, base_ev)[["corp_code", "bsns_year", "y"]]
+    d2 = dataset.attach_labels(kept, both_ev)[["corp_code", "bsns_year", "y"]]
+    j = d1.merge(d2, on=["corp_code", "bsns_year"], suffixes=("_주", "_보조"))
+    only2 = int(((j.y_주 == 0) & (j.y_보조 == 1)).sum())
+    print(f"\n보조 정의로 **새로 생긴** 사건 {only2:,}건 "
+          f"(전체 보조 사건의 {only2/max(int(j.y_보조.sum()),1):.0%})")
+    out = config.RESULTS / "w13"; out.mkdir(parents=True, exist_ok=True)
+    t.to_csv(out / "보조정의_강건성.csv", index=False, encoding="utf-8-sig")
+    print(f"저장: {out}/보조정의_강건성.csv")
+
+
 def train():
     from . import pipeline
     res = pipeline.train()
@@ -1107,7 +1157,7 @@ def threshold():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "market": market_actions, "export": export, "cards": cards_v2, "threshold": threshold}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "robust": robust, "market": market_actions, "export": export, "cards": cards_v2, "threshold": threshold}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:
