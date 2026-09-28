@@ -315,6 +315,43 @@ def test_no_named_company_with_risk_score_committed():
     assert not bad, "실명+위험도 수치가 함께 커밋돼 있다:\n  " + "\n  ".join(bad)
 
 
+def test_docs_numbers_match_results():
+    """문서에 적힌 핵심 수치가 결과 파일과 어긋나면 실패한다.
+
+    2026-09-28: 분석을 다시 돌린 뒤 문서의 손으로 옮긴 숫자를 갱신하지 않아
+    삭제 검사 k=1 이 0.212(구) vs 0.254(현), README PR-AUC 가 0.249(구) vs 0.238(현)
+    로 어긋났다. 사람이 기억하는 대신 검사가 잡는다.
+    """
+    import csv
+    import json
+    root = Path(__file__).resolve().parents[1]
+    checks = []
+
+    f = root / "results" / "w11" / "삭제검사.csv"
+    if f.exists():
+        row = next(csv.DictReader(f.open(encoding="utf-8")))
+        checks.append(("삭제검사 k=1", round(float(row["SHAP상위"]), 3),
+                       ["docs/20_최종보고서.md"]))
+
+    f = root / "results" / "final" / "최종성능.json"
+    if f.exists():
+        j = json.loads(f.read_text())
+        v = j["결과"]["앙상블(비보정)"]["PR-AUC"]
+        checks.append(("평가 PR-AUC", round(float(v), 3),
+                       ["docs/20_최종보고서.md", "README.md", "docs/10_실측결과.md"]))
+
+    bad = []
+    for name, val, files in checks:
+        token = f"{val:.3f}".rstrip("0")
+        for rel in files:
+            t = (root / rel)
+            if not t.exists():
+                continue
+            if token not in t.read_text():
+                bad.append(f"{rel}: {name} = {val} 가 본문에 없다")
+    assert not bad, "문서 수치가 결과 파일과 어긋난다:\n  " + "\n  ".join(bad)
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
