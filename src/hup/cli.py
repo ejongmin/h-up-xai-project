@@ -279,6 +279,156 @@ def eda():
     print(f"\n저장: {out}")
 
 
+def tabpfn():
+    """TabPFN 벤치마크 — 표 데이터 파운데이션 모델. **검증 구간에서만.**
+
+    소규모 표 데이터에서 현재 최강 계열로 보고된다. 우리 데이터가 적용 범위 안이다.
+    주 모델을 바꾸려는 것이 아니라 **"우리 앙상블이 어디쯤인가"** 를 재는 벤치마크다.
+
+    평가 구간은 이미 닫혔으므로 여기서 이겨도 최종 성능을 갈아끼우지 않는다.
+    """
+    import time
+    import numpy as np
+    import pandas as pd
+    from . import config, model, pipeline
+    df = pipeline.load()
+    s_, rep, fin, _ = pipeline._prepare(df)
+    use = pipeline._with_flags(s_, fin)
+    tr, va = s_["train"], s_["valid"]
+    base = float(va["y"].mean())
+    print(f"학습 {len(tr):,} × {len(use)}변수 · 검증 {len(va):,} (사건 {int(va.y.sum())})\n")
+
+    rows = []
+    m = model.ensemble().fit(tr[use], tr["y"])
+    r = model.evaluate(va["y"], m.predict_proba(va[use])[:, 1], n_boot=400)
+    rows.append(("우리 앙상블", r, 0.0))
+
+    try:
+        import torch
+        from tabpfn import TabPFNClassifier
+        dev = "mps" if torch.backends.mps.is_available() else "cpu"
+        t0 = time.time()
+        clf = TabPFNClassifier(device=dev, ignore_pretraining_limits=True)
+        clf.fit(tr[use].to_numpy(dtype=float), tr["y"].to_numpy())
+        p = clf.predict_proba(va[use].to_numpy(dtype=float))[:, 1]
+        el = time.time() - t0
+        rows.append((f"TabPFN ({dev})", model.evaluate(va["y"], p, n_boot=400), el))
+    except Exception as e:
+        print(f"TabPFN 실행 실패: {type(e).__name__} {str(e)[:160]}")
+
+    t = pd.DataFrame([{"모형": n, "PR-AUC": round(r["PR-AUC"], 4),
+                       "95%CI": r["PR-AUC_95CI"], "기준선대비": round(r["PR-AUC"] / base, 1),
+                       "ROC-AUC": round(r["ROC-AUC"], 4),
+                       "재현율@정밀도0.3": round(r["재현율@정밀도0.3"], 3),
+                       "학습+예측(초)": round(el, 1)} for n, r, el in rows])
+    print(t.to_string(index=False))
+    out = config.RESULTS / "w14"; out.mkdir(parents=True, exist_ok=True)
+    t.to_csv(out / "tabpfn_벤치마크.csv", index=False, encoding="utf-8-sig")
+    print(f"\n저장: {out}/tabpfn_벤치마크.csv")
+    print("※ 평가 구간은 닫혔다. 여기서 이겨도 최종 성능을 갈아끼우지 않는다.")
+
+
+def rolling():
+    """롤링 오리진 검증 — 평가 구간(2024~2025)을 **열지 않고** 증거를 늘린다.
+
+    지금은 검증 폴드가 하나뿐이라 "CI 가 겹친다"로 끝난다.
+    폴드를 여러 개 두면 성능이 연도에 따라 어떻게 흔들리는지 보여줄 수 있고,
+    실무에서 매년 재학습하는 상황과도 맞는다.
+
+    **새 폴더에서 평가 구간을 다시 여는 것과는 다르다.** 오염되는 것은 폴더가 아니라
+    분석자의 지식이다. 이미 본 구간으로 다시 고르면 폴더가 어디든 선택 편의다.
+    """
+    import numpy as np
+    import pandas as pd
+    from . import config, dataset, model, pipeline
+    df = pipeline.load()
+    folds = [(2016, a_, a_ + 1) for a_ in (2018, 2019, 2020, 2021)]
+    folds.append((2016, 2021, 2023))          # 현행 분할
+    rows = []
+    for tr0, tr1, va1 in folds:
+        va0 = tr1 + 1
+        spec = {"train": (tr0, tr1), "valid": (va0, va1), "test": (2024, 2025)}
+        s_ = dataset.split(df, spec)
+        if s_["valid"]["y"].sum() < 15:
+            rows.append({"학습": f"{tr0}~{tr1}", "검증": f"{va0}~{va1}",
+                         "검증n": len(s_["valid"]), "사건": int(s_["valid"].y.sum()),
+                         "PR-AUC": None, "비고": "사건 부족"})
+            continue
+        st = dataset.fit_clean(s_["train"])
+        s2 = {k: dataset.apply_clean(v, st) for k, v in s_.items()}
+        cols = [c for c in st["cols"] if c in s2["train"].columns]
+        cols += [c for c in s2["train"].columns if c.endswith("_결측")]
+        m = model.ensemble().fit(s2["train"][cols], s2["train"]["y"])
+        p = m.predict_proba(s2["valid"][cols])[:, 1]
+        r = model.evaluate(s2["valid"]["y"], p, n_boot=400)
+        base = float(s2["valid"]["y"].mean())
+        rows.append({"학습": f"{tr0}~{tr1}", "검증": f"{va0}~{va1}",
+                     "검증n": len(s2["valid"]), "사건": int(s2["valid"].y.sum()),
+                     "PR-AUC": round(r["PR-AUC"], 4), "95%CI": r["PR-AUC_95CI"],
+                     "기준선대비": round(r["PR-AUC"] / base, 1),
+                     "재현율@정밀도0.3": round(r["재현율@정밀도0.3"], 3)})
+    t = pd.DataFrame(rows)
+    print("롤링 오리진 — 평가 구간(2024~2025)은 어느 폴드에서도 쓰지 않는다\n")
+    print(t.to_string(index=False))
+    ok = t["PR-AUC"].dropna()
+    if len(ok) > 1:
+        print(f"\n폴드 간 PR-AUC: 중앙값 {ok.median():.4f} · 범위 {ok.min():.4f}~{ok.max():.4f}")
+    out = config.RESULTS / "w14"; out.mkdir(parents=True, exist_ok=True)
+    t.to_csv(out / "롤링오리진.csv", index=False, encoding="utf-8-sig")
+    print(f"저장: {out}/롤링오리진.csv")
+
+
+def classic():
+    """고전 모형 벤치마크 — Altman(1968) 형 · Ohlson(1980) 형. **검증 구간에서만.**
+
+    1968·1980년 미국 데이터로 만든 계수를 2016~2025 한국 상장사에 그대로 적용한다.
+    우리 데이터에 없는 항(이익잉여금·시가총액)은 대체했으므로 **점수 값 자체는 해석하지 않고
+    순위 성능(PR-AUC)만 비교한다.** '형(form)'이라 부르는 이유다.
+    """
+    import numpy as np
+    import pandas as pd
+    from . import config, model, pipeline
+    df = pipeline.load()
+    s_, rep, fin, _ = pipeline._prepare(df)
+    use = pipeline._with_flags(s_, fin)
+    tr, va = s_["train"], s_["valid"]
+    y = va["y"]
+    base = float(y.mean())
+    print(f"검증 구간 n={len(va):,} 사건 {int(y.sum())} 기준선 {base:.4f}\n")
+
+    # Altman 형 — 높을수록 안전하므로 부호를 뒤집어 위험 점수로
+    wc = va["유동비율"] - 1.0                       # 운전자본/유동부채 대용
+    alt = (1.2 * wc.clip(-5, 5) + 1.4 * (-va["자본잠식률"]).clip(-5, 5)
+           + 3.3 * va["총자산영업이익률"] + 0.6 * va["자기자본비율"] + 1.0 * va["총자산회전율"])
+    alt_risk = -alt
+
+    # Ohlson 형 — 높을수록 위험
+    ohl = (-1.32 - 0.407 * va["로그자산"] + 6.03 * (1 - va["자기자본비율"])
+           + 0.076 * va["유동비율"].clip(0, 5) - 1.72 * va["완전자본잠식"]
+           - 2.37 * va["ROA"] - 1.83 * va["영업현금흐름_부채"]
+           + 0.285 * va["2년연속영업손실"] - 0.521 * va["ΔROA"])
+
+    est = model.ensemble().fit(tr[use], tr["y"])
+    ours = est.predict_proba(va[use])[:, 1]
+    lr = model.baseline().fit(tr[use], tr["y"])
+    ours_lr = lr.predict_proba(va[use])[:, 1]
+
+    rows = []
+    for name, sc in (("Altman(1968) 형", alt_risk), ("Ohlson(1980) 형", ohl),
+                     ("우리 로지스틱", ours_lr), ("우리 앙상블", ours)):
+        r = model.evaluate(y, pd.Series(sc).fillna(0), n_boot=400)
+        rows.append({"모형": name, "PR-AUC": round(r["PR-AUC"], 4),
+                     "95%CI": r["PR-AUC_95CI"], "기준선대비": round(r["PR-AUC"] / base, 1),
+                     "ROC-AUC": round(r["ROC-AUC"], 4),
+                     "재현율@정밀도0.3": round(r["재현율@정밀도0.3"], 3)})
+    t = pd.DataFrame(rows)
+    print(t.to_string(index=False))
+    out = config.RESULTS / "w14"; out.mkdir(parents=True, exist_ok=True)
+    t.to_csv(out / "고전모형_벤치마크.csv", index=False, encoding="utf-8-sig")
+    print(f"\n저장: {out}/고전모형_벤치마크.csv")
+    print("※ 대체 변수를 쓴 '형'이므로 점수 값이 아니라 순위 성능만 비교한다")
+
+
 def robust():
     """보조 정의 강건성 검증 (docs/01 §2.2).
 
@@ -1157,7 +1307,7 @@ def threshold():
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
-         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "robust": robust, "market": market_actions, "export": export, "cards": cards_v2, "threshold": threshold}
+         "diagnose": diagnose, "calibrate": calibrate, "prices": prices, "compare": compare, "w08": w08, "shap": shap, "faithful": faithful, "w12": w12, "w13": w13, "final": final, "robust": robust, "classic": classic, "rolling": rolling, "tabpfn": tabpfn, "market": market_actions, "export": export, "cards": cards_v2, "threshold": threshold}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in STEPS:
