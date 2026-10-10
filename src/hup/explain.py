@@ -88,7 +88,9 @@ HIGH_IS_RISKY = {"부채비율", "자본잠식", "완전자본잠식", "자본�
 # 자본총계를 분모로 쓰는 비율. 자본이 음(-)이면 값의 부호가 뒤집혀 해석이 불가능하다.
 # 2026-09-22: 완전자본잠식 기업의 부채비율 −2.52 를 보고 카드가
 # "부채비율이 낮은 편입니다"라고 썼다. 가장 심한 부실 신호를 안전 신호로 뒤집어 읽은 것이다.
-EQUITY_BASED = {"부채비율", "자기자본비율", "자본잠식률"}
+# 2026-10-11: 자본잠식률은 분모가 자본총계가 아니라 **자본금**이다 — 자본이 음수여도 부호가 뒤집히지 않고 100% 를 넘을 뿐이다.
+# 여기 넣어 두었더니 완전자본잠식 기업 카드에서 가장 직접적인 문장이 빠졌고, 그 기업들의 설명이 전부 '불안정'으로 보류됐다.
+EQUITY_BASED = {"부채비율", "자기자본비율"}
 
 
 def _equity_wiped(row):
@@ -287,13 +289,59 @@ def counterfactual_lines(base, items):
     return lines
 
 
-def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None, cf=None):
+def _shown(s, allow, wiped):
+    """카드에 오를 수 있는 변수만 남긴 SHAP 시리즈 (card() 와 같은 규칙)."""
+    if allow:
+        s = s[[c for c in s.index if c in allow]]
+    s = s[[c for c in s.index if not _card_excluded(c)]]
+    if wiped:
+        s = s[[c for c in s.index if c not in EQUITY_BASED]]
+    return s
+
+
+def hold_reasons(row, sv, cols, allow=None, ref=None, top_k=4):
+    """설명을 내보내면 안 되는 이유들. 빈 목록이면 카드를 낸다 (docs/13 §6, 2026-10-11).
+
+    네 가지를 검사한다 — 단위 의심 · 핵심값 결측 · 설명 불안정 · 문장 방향 충돌.
+    '위험을 낮춘 요인'의 방향 충돌은 보류 사유가 아니다 — 모델이 관측값과 반대로 판단한 지점을
+    드러내는 것이 카드 설계 원칙 ① 이다. 보류는 **위험 요인 설명 자체를 믿을 수 없을 때**만 한다.
+    """
+    out = []
+    a = row.get("_assets")
+    if row.get("_unit_unconfirmed") == 1 or (a is not None and pd.notna(a) and 0 < a < 1e9):
+        out.append("단위 의심 — 공시 금액 단위를 확인할 수 없어 규모·증가율 설명을 믿을 수 없습니다")
+    if a is not None and (pd.isna(a) or a <= 0):
+        out.append("핵심값 결측 — 재무제표 핵심 금액이 비어 있습니다")
+    s_all = pd.Series(sv, index=cols)
+    s = _shown(s_all, allow, _equity_wiped(row))
+    up = s[s > 0].sort_values(ascending=False).head(top_k)
+    miss = [n for n in up.index if pd.isna(row.get(n))]
+    if miss:
+        out.append(f"핵심값 결측 — {', '.join(miss)} 의 공시 값이 없어 모델은 대치값으로 판단했습니다")
+    top1 = s_all.abs().idxmax() if len(s_all) else None
+    if top1 is not None and top1 not in s.index:
+        out.append(f"설명 불안정 — 모델의 가장 큰 근거({top1})가 카드에 올릴 수 없는 변수입니다"
+                   " (안정성 검사 미통과·결측 여부·변화량)")
+    sides = {n: _risky_side(n, row.get(n), ref) for n in up.index}
+    clash = [n for n, v in sides.items() if v is not None and not v]   # numpy bool 이라 `is False` 는 안 된다
+    if clash and (clash[0] == up.index[0] or len(clash) >= 2):
+        out.append(f"문장 방향 충돌 — 위험을 높였다는 {', '.join(clash)} 의 관측값이 안전 쪽입니다")
+    return out
+
+
+def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None, cf=None, hold=True):
     """한 기업-연도에 대한 설명 카드(문자열).
 
     묶음(위험을 높인/낮춘)은 SHAP 부호로 정하고, 문장은 **관측값**으로 정한다.
     둘을 같은 근거로 정하면 모델이 이상하게 판단한 경우가 카드에서 지워진다.
     "매출이 줄었는데 위험을 낮춘 요인"으로 나오면 그게 봐야 할 지점이다.
     """
+    if hold:
+        why = hold_reasons(row, sv, cols, allow, ref, top_k)
+        if why:
+            head = [f"모형 추정 부실확률 {prob:.1%}"] if prob is not None else []
+            return "\n".join(head + ["설명 보류 — 아래 이유로 이 기업의 요인 설명을 내지 않습니다",
+                                      *[f"  - {w}" for w in why]])
     s = pd.Series(sv, index=cols)
     if allow:
         s = s[[c for c in s.index if c in allow]]

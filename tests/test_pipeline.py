@@ -75,7 +75,12 @@ def test_end_to_end():
     assert allow, "안정 변수가 하나도 안 남으면 설명 카드를 만들 수 없다"
     assert len(out) == 2
     card = out[0]["card"]
-    assert "위험을 높인 요인" in card and "위험을 낮춘 요인" in card
+    # 카드는 정상 카드이거나, 이유를 적은 보류 카드여야 한다 (2026-10-11 설명 보류 기능).
+    # 합성 데이터는 신호가 대부분 잡음이라 가장 큰 근거가 변화량 변수가 되어 보류되는 것이 정상이다.
+    for c in out:
+        full = "위험을 높인 요인" in c["card"] and "위험을 낮춘 요인" in c["card"]
+        held = "설명 보류" in c["card"] and "  - " in c["card"]
+        assert full or held, c["card"]
     assert not any(ch.isdigit() and "SHAP" in card for ch in card), "카드에 SHAP 원값이 노출되면 안 된다"
     print("\n--- 카드 예시 ---\n" + card)
     return res

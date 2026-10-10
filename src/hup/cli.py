@@ -871,6 +871,22 @@ def faithful():
           f"→ 현행(ABS_CUT)은 상대 문장으로 바꿔 0개")
     for k_, v_ in sorted(over_by_var.items(), key=lambda x: -x[1]):
         print(f"    {k_:<16} {v_}")
+
+    # 2026-10-11: 설명 보류 — 단위 의심 · 핵심값 결측 · 설명 불안정 · 문장 방향 충돌 (docs/13 §6)
+    print("\n" + "=" * 70)
+    print("[4] 설명 보류 — 위험 상위 150건 중 카드를 내지 않는 비율과 이유")
+    held, why_n = 0, {}
+    for i in risky[:150]:
+        row = df.loc[X.index[i]]                     # 정제 전 원본 (단위·결측 판정용)
+        why = explain.hold_reasons(row, sv[i], use, allow, ref)
+        held += bool(why)
+        for w in why:
+            k_ = w.split(" — ")[0]
+            why_n[k_] = why_n.get(k_, 0) + 1
+    print(f"  보류 {held}/150 ({held/150:.1%})")
+    for k_, v_ in sorted(why_n.items(), key=lambda x: -x[1]):
+        print(f"    {k_:<12} {v_}")
+    pd.DataFrame([{"보류": held, "검사": 150, **why_n}]).to_csv(out / "설명보류.csv", index=False, encoding="utf-8-sig")
     print(f"\n저장: {out}")
 
 

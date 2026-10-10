@@ -117,8 +117,11 @@ def test_card_reads_off_the_observed_value():
     # 변화량·증가율·결측 더미는 카드 문장으로 만들지 않는다 (모델에서 빼는 것과 다름)
     cols2 = cols + ["Δ부채비율", "자산증가율", "부채비율_결측"]
     row2 = pd.concat([row, pd.Series({"Δ부채비율": 3.0, "자산증가율": -0.9, "부채비율_결측": 1.0})])
-    t2 = explain.card(row2, np.array([-0.1, 0.4, 0.3, 0.2, 0.9, 0.8, 0.7]), cols2, ref=ref)
+    sv2 = np.array([-0.1, 0.4, 0.3, 0.2, 0.9, 0.8, 0.7])
+    t2 = explain.card(row2, sv2, cols2, ref=ref, hold=False)
     assert "전년 대비" not in t2 and "자산이 줄었습니다" not in t2 and "결측" not in t2
+    # 그런데 가장 큰 근거가 카드에 못 오르는 변수(Δ부채비율)면 그 카드는 보류한다 (2026-10-11)
+    assert "설명 불안정" in explain.card(row2, sv2, cols2, ref=ref)
 
 
 def test_card_does_not_overstate_absolute_facts():
@@ -170,6 +173,31 @@ def test_unit_switch_confirmed_by_next_report():
     assert grown[(grown.corp_code == "C") & (grown.bsns_year.isin([2021, 2022, 2023]))]["자산증가율"].isna().all()
     assert np.isfinite(grown["자산증가율"].dropna()).all()
     assert features.empty_statement({"assets": 0.0}) and features.empty_statement({"assets": None})
+
+
+def test_card_holds_untrustworthy_explanations():
+    """믿을 수 없는 설명은 내지 않고 이유를 적는다 (docs/13 §6, 2026-10-11)."""
+    from hup import explain
+    cols = ["ROA", "유동비율", "자본잠식률", "ROA_결측"]
+    ref = pd.Series({"ROA": 0.02, "유동비율": 1.6, "자본잠식률": -8.0})
+    ok = pd.Series({"ROA": -0.2, "유동비율": 0.5, "자본잠식률": 0.6, "ROA_결측": 0, "_assets": 5e10})
+    sv = np.array([0.5, 0.3, 0.2, 0.0])
+    assert "보류" not in explain.card(ok, sv, cols, ref=ref, prob=0.4)
+    # 단위 의심
+    bad = ok.copy(); bad["_assets"] = 3e8
+    assert "단위 의심" in explain.card(bad, sv, cols, ref=ref)
+    # 핵심값 결측 — 위험 요인으로 오를 변수의 원본 값이 없다
+    m = ok.copy(); m["ROA"] = np.nan
+    t = explain.card(m, sv, cols, ref=ref)
+    assert "핵심값 결측" in t and "ROA" in t
+    # 설명 불안정 — 가장 큰 근거가 결측 더미
+    assert "설명 불안정" in explain.card(ok, np.array([0.1, 0.1, 0.1, 0.9]), cols, ref=ref)
+    # 방향 충돌 — 가장 큰 위험 요인의 관측값이 안전 쪽
+    c = ok.copy(); c["ROA"] = 0.10
+    assert "방향 충돌" in explain.card(c, sv, cols, ref=ref)
+    # 낮춘 요인의 방향 충돌은 보류 사유가 아니다 (원칙 ①)
+    d = ok.copy(); d["자본잠식률"] = 0.6
+    assert "보류" not in explain.card(d, np.array([0.5, 0.3, -0.2, 0.0]), cols, ref=ref)
 
 
 def test_no_shadowed_definitions():
@@ -242,6 +270,11 @@ def test_card_handles_negative_equity():
     assert "자기자본이 두텁습니다" not in txt
     assert "부채 의존도가 낮습니다" not in txt
     assert "벌어들이는 이익이 적습니다" in txt, "해석 가능한 변수는 그대로 남아야 한다"
+    # 자본잠식률은 분모가 자본금이라 자본이 음수여도 해석된다 — 빼면 안 된다 (2026-10-11)
+    row2 = pd.concat([row, pd.Series({"자본잠식률": 2.3})])
+    t2 = explain.card(row2, np.array([-0.4, -0.3, 0.5, 0.2, 0.9]), cols + ["자본잠식률"],
+                      ref=pd.concat([ref, pd.Series({"자본잠식률": -8.0})]), prob=0.58)
+    assert "자본잠식이 진행되어 있습니다" in t2 and "보류" not in t2
 
 
 def test_counterfactual_rules():
