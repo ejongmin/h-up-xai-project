@@ -14,21 +14,25 @@ import pandas as pd
 # SHAP 기여가 +면 위험 쪽, -면 안전 쪽 문장을 쓴다. 변수마다 "높으면 위험"인지
 # "낮으면 위험"인지가 달라서, 값의 부호로 문장을 고르면 반드시 뒤집힌다.
 PHRASE = {
-    "부채비율":        ("부채비율이 높습니다", "부채비율이 낮은 편입니다", "배"),
-    "자기자본비율":     ("자기자본이 얇아 손실을 흡수할 여력이 작습니다", "자기자본이 두텁습니다", "%"),
+    "부채비율":        ("부채비율이 높습니다", "부채비율이 낮은 편입니다", "%"),
+    # 자기자본비율이 높다는 건 "자본이 두껍다"가 아니라 "부채 의존도가 낮다"다. 자본잠식 기업도
+    # 자산이 작으면 높게 나와 "자본잠식"과 "자기자본이 두텁다"가 한 카드에 같이 나왔다 (정민재 docs/12 1-3).
+    "자기자본비율":     ("자기자본이 얇아 손실을 흡수할 여력이 작습니다", "부채 의존도가 낮습니다", "%"),
     "유동비율":        ("1년 내 갚아야 할 돈에 비해 현금화 가능한 자산이 부족합니다",
                        "단기 지급능력에 여유가 있습니다", "%"),
-    "이자보상배율":     ("영업이익으로 이자비용을 감당하지 못하고 있습니다",
-                       "영업이익으로 이자비용을 충분히 감당합니다", "배"),
+    # 분모는 이자비용이 아니라 금융원가(ifrs-full_FinanceCosts) — 외환·파생 손실이 섞일 수 있다
+    "이자보상배율":     ("영업이익으로 금융비용을 감당하지 못하고 있습니다(금융원가 기준)",
+                       "영업이익으로 금융비용을 충분히 감당합니다(금융원가 기준)", "배"),
     "영업이익률":       ("본업에서 이익이 나지 않고 있습니다", "본업에서 이익이 납니다", "%"),
     "순이익률":        ("순손실 상태입니다", "순이익이 유지되고 있습니다", "%"),
     "ROA":            ("자산 규모에 비해 벌어들이는 이익이 적습니다",
                        "자산 대비 수익성이 양호합니다", "%"),
     "총자산영업이익률":  ("자산 대비 영업이익이 부족합니다", "자산 대비 영업이익이 양호합니다", "%"),
-    "영업현금흐름_매출": ("매출은 있으나 현금이 들어오지 않고 있습니다",
-                       "매출이 현금으로 회수되고 있습니다", "%"),
-    "영업현금흐름_부채": ("영업활동 현금으로는 차입금 상환이 어렵습니다",
-                       "영업활동 현금으로 차입금을 감당할 수 있습니다", "%"),
+    # 영업현금흐름은 매출 회수만이 아니고, 분모는 차입금이 아니라 부채총계다 (정민재 docs/12 1-5)
+    "영업현금흐름_매출": ("영업활동 현금흐름이 마이너스입니다",
+                       "매출 대비 영업활동 현금흐름이 양호합니다", "%"),
+    "영업현금흐름_부채": ("영업활동 현금흐름이 마이너스라 부채 상환 재원이 되지 못합니다",
+                       "부채 대비 영업활동 현금흐름이 양호합니다", "%"),
     "이익의현금전환":    ("장부상 이익과 실제 현금흐름이 벌어져 있습니다",
                        "장부이익이 현금으로 뒷받침됩니다", "배"),
     "매출채권회전율":    ("대금 회수가 느려 매출채권이 쌓이고 있습니다", "대금 회수가 빠른 편입니다", "회"),
@@ -48,13 +52,14 @@ PHRASE = {
     "매출증가율":       ("매출이 전년 대비 줄었습니다", "매출이 전년 대비 늘었습니다", "%"),
     "자산증가율":       ("자산이 전년 대비 줄었습니다", "자산이 전년 대비 늘었습니다", "%"),
     # 로그값을 그대로 보여주면 실무 문서에 쓸 수 없다. 자산총계(억원)로 환산해 적는다.
-    "로그자산":        ("자산 규모가 작아 외부 충격이나 자금경색에 견딜 여력이 작습니다",
-                       "자산 규모가 커서 완충 여력이 있습니다", "억원"),
+    # "충격에 견딜 여력이 작다"는 데이터가 보여준 것 이상의 인과 서술이다
+    "로그자산":        ("자산 규모가 표본 중앙값보다 작습니다",
+                       "자산 규모가 표본 중앙값보다 큽니다", "억원"),
 }
 
 # 비율로 표시할 변수 — 소수(0.52)가 아니라 퍼센트(52.0%)로 적는다.
 # "자본잠식 정도가 큽니다 (실측 0.52)" 는 재무 문서로 읽히지 않는다.
-PCT = {"자기자본비율", "유동비율", "영업이익률", "순이익률", "ROA", "총자산영업이익률",
+PCT = {"부채비율", "자기자본비율", "유동비율", "영업이익률", "순이익률", "ROA", "총자산영업이익률",
        "영업현금흐름_매출", "영업현금흐름_부채", "자본잠식률",
        "Δ부채비율", "Δ영업이익률", "ΔROA", "Δ유동비율", "Δ영업현금흐름_매출",
        "매출증가율", "자산증가율"}
@@ -108,6 +113,42 @@ def _risky_side(name, v, ref):
     else:
         base = ref[name]
     return v > base if name in HIGH_IS_RISKY else v < base
+
+
+# 사실을 단정하는 위험 문장의 절대 기준선. "순손실 상태입니다"는 값 < 0 일 때만 참이다.
+# 2026-10-10 정민재 검토(docs/12): 위험 쪽 판정은 표본 중앙값 기준이라, 순이익률 +1%
+# (중앙값 +2.3%)에도 "순손실"이 나갔다. 자본잠식률은 중앙값이 −829.7% 라 검증 구간
+# 자본잠식 없는 기업의 42.3% 가 "자본잠식이 진행되어 있습니다" 쪽으로 판정됐다.
+# 기준선을 넘지 않았으면 중앙값과 비교한 상대 문장을 쓴다.
+ABS_CUT = {
+    "순이익률": (0.0, "순이익률이 표본 중앙값보다 낮습니다"),
+    "영업이익률": (0.0, "영업이익률이 표본 중앙값보다 낮습니다"),
+    "영업현금흐름_매출": (0.0, "매출 대비 영업현금흐름이 표본 중앙값보다 적습니다"),
+    "영업현금흐름_부채": (0.0, "부채 대비 영업현금흐름이 표본 중앙값보다 적습니다"),
+    "자본잠식률": (0.0, "자본잠식은 없으나 자본 여력이 표본 중앙값보다 작습니다"),
+    "이자보상배율": (1.0, "이자는 감당하고 있으나 이자보상배율이 표본 중앙값보다 낮습니다"),
+    "유동비율": (1.0, "유동자산이 유동부채보다 많으나 유동비율이 표본 중앙값보다 낮습니다"),
+}
+
+
+def overstated(name, v):
+    """위험 문장이 단정하는 사실이 관측값으로는 거짓인가 (기준선을 넘지 않았는가)."""
+    if name not in ABS_CUT or v is None or pd.isna(v):
+        return False
+    cut = ABS_CUT[name][0]
+    return not (v > cut if name in HIGH_IS_RISKY else v < cut)
+
+
+def sentence(name, v, ref, contrib):
+    """관측값으로 문장을 고른다. 위험 쪽이어도 절대 기준선을 넘지 않았으면 상대 문장."""
+    risky, safe, _ = PHRASE.get(name, (f"{name}이(가) 위험 쪽입니다",
+                                       f"{name}이(가) 안전 쪽입니다", ""))
+    side = _risky_side(name, v, ref)
+    if side is None:
+        return risky if contrib > 0 else safe
+    if not side:
+        return safe
+    return ABS_CUT[name][1] if overstated(name, v) else risky
 
 
 def shap_values(model, X, background=None):
@@ -186,7 +227,7 @@ def counterfactual(model, X_row, cols, names, ref, n=3, min_drop=0.05, skip=()):
     base = float(model.predict_proba(X_row.to_frame().T[cols])[0, 1])
     out = []
     for nm in names:
-        if nm in skip or nm not in cols:
+        if nm in skip or nm in NO_CF or nm not in cols:
             continue
         target, phrase = cf_target(nm, ref)
         if target is None:
@@ -198,6 +239,19 @@ def counterfactual(model, X_row, cols, names, ref, n=3, min_drop=0.05, skip=()):
             out.append((nm, base, p, target, phrase))
     out.sort(key=lambda r: r[2])
     return base, out[:n]
+
+
+# 바꿀 수 없는 특성은 반사실로 제시하지 않는다. "자산이 중앙값 수준이면 확률이 내려간다"는
+# 실무자가 할 수 있는 일이 아니다 (정민재 docs/12 §2).
+NO_CF = {"로그자산"}
+
+
+def _josa(word):
+    """주격 조사. 한글은 받침으로, 영문 약어(ROA 등)는 읽는 소리가 모음으로 끝나 '가'."""
+    ch = word[-1]
+    if "가" <= ch <= "힣":
+        return "이" if (ord(ch) - 0xAC00) % 28 else "가"
+    return "가"
 
 
 # 변수마다 '정상 수준'의 뜻이 다르다. 자본잠식은 중앙값이 아니라 **해소(0%)** 가 기준이고,
@@ -219,7 +273,7 @@ def cf_target(name, ref):
     if name in ref and not pd.isna(ref[name]):
         _, _, unit = PHRASE.get(name, ("", "", ""))
         tv = format_value(name, ref[name], unit).strip(" ()").replace("실측 ", "")
-        return float(ref[name]), f"{name}이(가) 표본 중앙값({tv}) 수준이면"
+        return float(ref[name]), f"{name}{_josa(name)} 표본 중앙값({tv}) 수준이면"
     return None, None
 
 
@@ -246,11 +300,9 @@ def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None, cf=None):
     s = s[[c for c in s.index if not _card_excluded(c)]]
 
     def line(name, contrib):
-        risky, safe, unit = PHRASE.get(name, (f"{name}이(가) 위험 쪽입니다",
-                                              f"{name}이(가) 안전 쪽입니다", ""))
+        unit = PHRASE.get(name, ("", "", ""))[2]
         v = row.get(name)
-        side = _risky_side(name, v, ref)
-        txt = (risky if side else safe) if side is not None else (risky if contrib > 0 else safe)
+        txt = sentence(name, v, ref, contrib)
         num = "" if name in FLAGS else format_value(name, v, unit)
         return f"  - {txt}{num}"
 

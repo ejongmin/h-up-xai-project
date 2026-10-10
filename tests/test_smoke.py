@@ -116,6 +116,23 @@ def test_card_reads_off_the_observed_value():
     assert "전년 대비" not in t2 and "자산이 줄었습니다" not in t2 and "결측" not in t2
 
 
+def test_card_does_not_overstate_absolute_facts():
+    """중앙값보다만 나쁜 값에 사실 단정 문장을 쓰면 안 된다 (2026-10-10 정민재 검토).
+
+    순이익률 +1% 에 "순손실 상태입니다", 자본잠식률 −500%(잠식 없음)에
+    "자본잠식이 진행되어 있습니다"가 나가고 있었다.
+    """
+    from hup import explain
+    cols = ["순이익률", "자본잠식률", "유동비율"]
+    ref = pd.Series({"순이익률": 0.023, "자본잠식률": -8.297, "유동비율": 1.62})
+    sv = np.array([0.3, 0.2, 0.1])
+    mild = explain.card(pd.Series({"순이익률": 0.01, "자본잠식률": -5.0, "유동비율": 1.2}), sv, cols, ref=ref)
+    assert "순손실" not in mild and "자본잠식이 진행" not in mild and "부족합니다" not in mild
+    assert "표본 중앙값보다" in mild, "중앙값보다 나쁜 건 사실이므로 상대 문장으로는 남긴다"
+    bad = explain.card(pd.Series({"순이익률": -0.2, "자본잠식률": 0.6, "유동비율": 0.5}), sv, cols, ref=ref)
+    assert "순손실 상태입니다" in bad and "자본잠식이 진행" in bad and "부족합니다" in bad
+
+
 def test_no_shadowed_definitions():
     """같은 이름을 두 번 정의하면 파이썬은 **조용히 나중 것을 쓴다.**
 
@@ -184,6 +201,7 @@ def test_card_handles_negative_equity():
     assert "완전 자본잠식" in txt, "자본이 음수라는 사실을 카드가 말해야 한다"
     assert "부채비율이 낮은 편입니다" not in txt
     assert "자기자본이 두텁습니다" not in txt
+    assert "부채 의존도가 낮습니다" not in txt
     assert "벌어들이는 이익이 적습니다" in txt, "해석 가능한 변수는 그대로 남아야 한다"
 
 
@@ -212,6 +230,18 @@ def test_counterfactual_rules():
     _, items2 = explain.counterfactual(Stub(), row, cols, cols, ref,
                                        skip=explain.EQUITY_BASED)
     assert all(n not in explain.EQUITY_BASED for n, *_ in items2)
+
+    # 2026-10-10 정민재 검토: "ROA이(가)" 같은 표기, 바꿀 수 없는 규모를 반사실로 제시하는 것
+    ref2 = pd.Series({"ROA": 0.02, "자기자본비율": 0.59, "로그자산": 25.0})
+    assert "ROA가 " in explain.cf_target("ROA", ref2)[1]
+    assert "자기자본비율이 " in explain.cf_target("자기자본비율", ref2)[1]
+
+    class Size:
+        def predict_proba(self, X):
+            p = 0.9 - 0.5 * (X.iloc[0]["로그자산"] > 24)
+            return np.array([[1 - p, p]])
+    _, items3 = explain.counterfactual(Size(), pd.Series({"로그자산": 20.0}), ["로그자산"], ["로그자산"], ref2)
+    assert not items3, "자산 규모는 반사실로 제시하지 않는다"
 
 
 def test_audit_response_keeps_only_current_period():
@@ -331,7 +361,7 @@ def test_docs_numbers_match_results():
     if f.exists():
         row = next(csv.DictReader(f.open(encoding="utf-8")))
         checks.append(("삭제검사 k=1", round(float(row["SHAP상위"]), 3),
-                       ["docs/20_최종보고서.md"]))
+                       ["docs/20_최종보고서.md", "docs/10_실측결과.md"]))
 
     f = root / "results" / "final" / "최종성능.json"
     if f.exists():
@@ -340,7 +370,21 @@ def test_docs_numbers_match_results():
         checks.append(("평가 PR-AUC", round(float(v), 3),
                        ["docs/20_최종보고서.md", "README.md", "docs/10_실측결과.md"]))
 
-    bad = []
+    # 2026-10-10: §3-4·§3-7 이 검증 구간 확대 전 값(유의 11개, ROA 0.311)으로 남아 있었다.
+    # 문서 문장에 그대로 들어가는 문구로 대조한다 (파일, 찾을 문구).
+    literal = []
+    f = root / "results" / "w07" / "계수_군집보정.csv"
+    if f.exists():
+        rows = list(csv.DictReader(f.open(encoding="utf-8-sig")))
+        n = sum(r["유의_보정후"] == "True" for r in rows)
+        literal += [("docs/10_실측결과.md", f"보정 후 {n}개"), ("docs/20_최종보고서.md", f"{n}개로 줄었다")]
+    f = root / "results" / "w09" / "전역기여도.csv"
+    if f.exists():
+        name, v = next(csv.reader(f.open(encoding="utf-8-sig").readlines()[1:]))
+        literal.append(("docs/10_실측결과.md", f"| {name} | {float(v):.3f}"))
+
+    bad = [f"{rel}: '{tok}' 가 본문에 없다" for rel, tok in literal
+           if (root / rel).exists() and tok not in (root / rel).read_text()]
     for name, val, files in checks:
         token = f"{val:.3f}".rstrip("0")
         for rel in files:

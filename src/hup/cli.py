@@ -824,7 +824,7 @@ def faithful():
     allow = explain.stable_features(
         lambda random_state: model.ensemble(random_state=random_state), tr[use], tr["y"], top=99)
     ref = tr[use].median()
-    n_card = n_bad = 0
+    n_card = n_bad = n_card_c = n_bad_c = 0
     bad_by_var = {}
     for i in risky[:150]:
         row, contrib = X.iloc[i], pd.Series(sv[i], index=use)
@@ -835,14 +835,42 @@ def faithful():
             if side is None:
                 continue
             n_card += 1
+            on_card = not explain._card_excluded(name)
+            n_card_c += on_card
             if (c > 0) != side:                 # 묶음과 문장이 반대 방향
                 n_bad += 1
+                n_bad_c += on_card
                 bad_by_var[name] = bad_by_var.get(name, 0) + 1
     print(f"  검사한 (사례 × 변수) {n_card:,}건 중 모순 {n_bad:,}건 ({n_bad/max(n_card,1):.1%})")
+    print(f"  카드 대상 변수만(변화량·증가율 제외) {n_card_c:,}건 중 모순 {n_bad_c:,}건 "
+          f"({n_bad_c/max(n_card_c,1):.1%})")
     print("  변수별 모순 빈도:")
     for k_, v_ in sorted(bad_by_var.items(), key=lambda x: -x[1])[:8]:
         print(f"    {k_:<16} {v_}")
     print("\n  → 모순은 버그가 아니라 모델이 관측값과 반대로 판단한 지점이다. 12주차 재료.")
+
+    # 2026-10-10: 위 모순률은 '방향'만 본다. 문장이 단정하는 **사실**이 맞는지는 따로 잰다.
+    # 실제 카드에 오르는 줄(위험 상위 4 + 낮춘 2)만 센다.
+    print("\n" + "=" * 70)
+    print("[3] 카드에 실제로 오른 줄 중 사실 단정이 관측값과 다른 줄")
+    n_line = n_over = 0
+    over_by_var = {}
+    for i in risky[:150]:
+        row, s = X.iloc[i], pd.Series(sv[i], index=use)
+        s = s[[c for c in s.index if c in allow and not explain._card_excluded(c)]]
+        if explain._equity_wiped(row):
+            s = s[[c for c in s.index if c not in explain.EQUITY_BASED]]
+        shown = list(s[s > 0].sort_values(ascending=False).head(4).index) + \
+            list(s[s < 0].sort_values().head(2).index)
+        for name in shown:
+            n_line += 1
+            if explain._risky_side(name, row.get(name), ref) and explain.overstated(name, row.get(name)):
+                n_over += 1
+                over_by_var[name] = over_by_var.get(name, 0) + 1
+    print(f"  카드 줄 {n_line:,}개 중 구 방식이면 사실과 다른 단정 {n_over:,}개 ({n_over/max(n_line,1):.1%}) "
+          f"→ 현행(ABS_CUT)은 상대 문장으로 바꿔 0개")
+    for k_, v_ in sorted(over_by_var.items(), key=lambda x: -x[1]):
+        print(f"    {k_:<16} {v_}")
     print(f"\n저장: {out}")
 
 
