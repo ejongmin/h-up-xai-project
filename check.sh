@@ -16,7 +16,9 @@ echo "$N 개 (최소 $MIN)"
 echo "── test_smoke (규칙 점검)"
 .venv/bin/python -W error::DeprecationWarning tests/test_smoke.py
 echo "── test_pipeline (합성 데이터 전 구간)"
-.venv/bin/python -W error::DeprecationWarning tests/test_pipeline.py > /dev/null && echo "전 구간 통과"
+# 2026-10-11: `cmd > /dev/null && echo` 는 실패해도 set -e 가 멈추지 않는다 — 실패한 채 "전부 통과"를 찍었다
+.venv/bin/python -W error::DeprecationWarning tests/test_pipeline.py > /dev/null
+echo "전 구간 통과"
 echo "── 전부 통과"
 # 주의: ./check.sh | tail 로 돌리면 파이프 종료코드가 tail 것이라 실패가 묻힌다.
 # 그냥 ./check.sh 로 돌리거나, 꼭 파이프를 쓰면 `set -o pipefail` 을 켤 것.

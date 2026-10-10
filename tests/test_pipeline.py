@@ -48,8 +48,10 @@ def synthetic(n_corp=400, seed=0):
     g = df.groupby(df["rcept_dt"].dt.year)["시가총액로그"]
     df["상대규모"] = df["시가총액로그"] - g.transform("mean")
     df = features.add_changes(df)
-    # 라벨: 아픈 기업이 후반부에 사건. 사건 비율 2% 안팎을 맞춘다
-    df["y"] = ((df["_sick"]) & (df["bsns_year"] >= 2019) & (rng.random(len(df)) < .18)).astype(int)
+    # 라벨: 아픈 기업에 사건. 사건 비율 1~2% 를 맞춘다.
+    # 2026-10-11: 2019년부터만 사건을 두면 엠바고 후 학습 구간 사건이 10건 안팎이라
+    # 조기 종료용 검증 10% 에 양성이 거의 없어 모델이 바로 멈췄다(실데이터 학습 사건은 188건).
+    df["y"] = ((df["_sick"]) & (df["bsns_year"] >= 2016) & (rng.random(len(df)) < .13)).astype(int)
     return df.drop(columns=["_sick"])
 
 
