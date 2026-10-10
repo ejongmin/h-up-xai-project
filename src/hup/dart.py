@@ -138,14 +138,14 @@ def corp_codes():
 
 def company(corp_code):
     """기업개황 — 업종코드(induty_code)가 금융업 제외에 필요하다."""
-    if not config.DART_KEY:
-        raise DartError("DART_API_KEY 가 비어 있다")
     global CALLS
     cf = _cache_file("company.json", {"corp_code": corp_code})
     if cf.exists():
         hit = _read_cache(cf)
         if hit is not None:
             return hit
+    if not config.DART_KEY:      # 캐시가 먼저 — get() 과 같은 이유
+        raise DartError("DART_API_KEY 가 비어 있다")
     url = BASE + "company.json?" + urllib.parse.urlencode(
         {"crtfc_key": config.DART_KEY, "corp_code": corp_code})
     body = _open_json(url)

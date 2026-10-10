@@ -145,14 +145,15 @@ def test_unit_switch_confirmed_by_next_report():
     """
     from hup import features
     df = pd.DataFrame({
-        "corp_code": ["A"] * 4 + ["B"] * 3 + ["C"] * 3,
-        "bsns_year": [2018, 2019, 2020, 2021, 2020, 2021, 2022, 2021, 2022, 2023],
+        "corp_code": ["A"] * 4 + ["B"] * 3 + ["C"] * 3 + ["D"] * 4,
+        "bsns_year": [2018, 2019, 2020, 2021, 2020, 2021, 2022, 2021, 2022, 2023, 2020, 2021, 2022, 2023],
         # A: 2019 부터 천원 단위 (전기 금액도 같은 단위로 공시됨)
         # B: 2021 보고서만 100만 배
-        # C: 2022 보고서 값과 2023 보고서의 전기 값이 1267배 — 10³·10⁶ 이 아니라 확인 불가
-        "_assets":      [1.4e11, 1.3e8, 1.5e8, 1.6e8, 5.0e10, 5.2e16, 5.4e10, 7.0e9, 9.0e12, 8.0e9],
-        "_assets_prev": [1.3e11, 1.4e8, 1.3e8, 1.5e8, 4.9e10, 5.0e16, 5.2e10, 6.0e9, 7.0e9, 7.1e9],
-        "_revenue":     [2e11, 2e8, 2e8, 2e8, 3e10, 3e16, 3e10, 1e9, 1e12, 1e9],
+        # C: 자기 시계열이 1000배 뛰었는데 어느 공시도 그 배율을 확인하지 않음 (합병일 수도) — 확인 불가
+        # D: 2022 보고서 당기 값만 1000배, 그 보고서의 전기 값과 다음 해 전기 값은 정상
+        "_assets":      [1.4e11, 1.3e8, 1.5e8, 1.6e8, 5.0e10, 5.2e16, 5.4e10, 7.0e9, 9.0e12, 9.1e12, 7.0e9, 7.2e9, 9.2e12, 8.0e9],
+        "_assets_prev": [1.3e11, 1.4e8, 1.3e8, 1.5e8, 4.9e10, 5.0e16, 5.2e10, 6.0e9, 7.0e9, 9.0e12, 6.9e9, 7.0e9, 7.2e9, 7.3e9],
+        "_revenue":     [2e11, 2e8, 2e8, 2e8, 3e10, 3e16, 3e10, 1e9, 1e12, 1e12, 1e9, 1e9, 1e12, 1e9],
     })
     df["로그자산"] = np.log(df["_assets"])
     out, log = features.fix_units(df)
@@ -161,10 +162,12 @@ def test_unit_switch_confirmed_by_next_report():
     b = out[out.corp_code == "B"].set_index("bsns_year")["_assets"]
     assert abs(b[2021] - 5.2e10) < 1, "확인된 100만 배는 정확히 10⁶ 로 고친다"
     c = out[out.corp_code == "C"].set_index("bsns_year")
-    assert c.loc[[2022, 2023], "로그자산"].isna().all(), "확인할 수 없으면 두 해 모두 결측"
-    assert c.loc[2021, "로그자산"] > 0, "불일치와 무관한 해는 그대로"
+    assert c.loc[[2021, 2022], "로그자산"].isna().all(), "확인할 수 없으면 두 해 모두 결측"
+    assert c.loc[2023, "로그자산"] > 0, "점프와 무관한 해는 그대로"
+    d = out[out.corp_code == "D"].set_index("bsns_year")["_assets"]
+    assert abs(d[2022] - 9.2e9) < 1 and d[[2020, 2021, 2023]].lt(1e10).all(), "당기 값만 틀린 해 하나만 고친다"
     grown = features.add_changes(out.assign(**{k: 0.0 for k in features.CHANGE_VARS}, 영업손실=0.0))
-    assert grown[(grown.corp_code == "C") & (grown.bsns_year >= 2022)]["자산증가율"].isna().all()
+    assert grown[(grown.corp_code == "C") & (grown.bsns_year.isin([2021, 2022, 2023]))]["자산증가율"].isna().all()
     assert np.isfinite(grown["자산증가율"].dropna()).all()
     assert features.empty_statement({"assets": 0.0}) and features.empty_statement({"assets": None})
 

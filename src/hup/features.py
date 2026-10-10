@@ -116,53 +116,75 @@ def empty_statement(a):
     return a.get("assets") is None or a["assets"] <= 0
 
 
-def fix_units(df, tol=0.01):
-    """보고서 사이 단위 전환을 같은 회사의 다른 공시로 확인해 금액을 고친다 (docs/13 §2).
+def fix_units(df, lo=0.67, hi=1.5):
+    """공시 단위 오류를 같은 회사의 다른 공시로 확인해 금액을 고친다 (docs/13 §2).
 
-    같은 회계연도 자산총계는 그 해 보고서(_assets)와 다음 해 보고서의 전기(_assets_prev)에 두 번 나온다.
-    둘의 비가 10³·10⁶ (±tol) 이면 단위 전환으로 확인한다. 2026-10-10 실측: 한 회사는 2019년부터 7년 연속
-    천원 단위였고(전년 대비 변동 검사로는 전환 첫해만 잡혔다), 자산 5경 원짜리 보고서도 있었다.
+    같은 회계연도 자산총계는 그 해 보고서 당기(_assets)와 다음 해 보고서 전기(_assets_prev)로 두 번 나온다.
+    판정: 자기 시계열에서 10³·10⁶ 점프가 있고, 그 점프를 **다른 해 보고서가 같은 배율로 확인**할 때만 단위 오류다.
+      - 앞쪽 확인: 이번 보고서가 공시한 전년 값 / 전년 보고서 당기 값 ≈ 점프 배율 (보고서 전체 단위가 바뀐 경우)
+      - 뒤쪽 확인: 다음 보고서가 공시한 올해 값 / 올해 당기 값 ≈ 점프의 역수 (당기 값만 틀린 경우)
+    '≈' 는 10ᵏ 의 0.67~1.5배 — 같은 해 값의 재작성 폭(실측 최대 21%)은 허용하지만 1000배는 재작성으로 생기지 않는다.
+    2026-10-10 실측: 2019년부터 7년 연속 천원 단위인 회사, 당기 값만 1000배인 보고서, 자산 5경 원짜리 보고서.
+    점프인데 확인이 없으면(실제 합병일 수도 있다) 고치지 않고 두 해를 결측. 고칠 때는 정확히 10ᵏ 로만 나눈다.
     비율은 같은 보고서 안에서 단위가 상쇄되므로 건드리지 않는다. 고치는 것은 금액(_assets, _revenue)과 로그자산.
     반환: (고친 df, 수정 내역 DataFrame)
     """
+    def near_pow(x):
+        """x 가 ±10³·±10⁶ 의 lo~hi 배 안이면 그 지수, 아니면 None."""
+        if not (x and x > 0 and np.isfinite(x)):
+            return None
+        k = round(np.log10(x))
+        return k if abs(k) in (3, 6) and lo <= x / 10.0 ** k <= hi else None
+
     df = df.sort_values(["corp_code", "bsns_year"]).copy()
     log = []
     for cc, g in df.groupby("corp_code", sort=False):
-        idx = list(g.index)
-        m = {idx[0]: 0}            # 보고서별 상대 단위 지수 (log10)
-        bad = set()
-        for i0, i1 in zip(idx, idx[1:]):
-            m[i1] = m[i0]
-            if g.at[i1, "bsns_year"] != g.at[i0, "bsns_year"] + 1:
-                continue           # 연도가 비면 비교할 공시가 없다 — 같은 단위로 둔다
-            a0, p1 = g.at[i0, "_assets"], g.at[i1, "_assets_prev"]
-            if not (a0 and p1 and a0 > 0 and p1 > 0):
+        idx, yrs = list(g.index), g["bsns_year"].tolist()
+        V, P = g["_assets"].tolist(), g["_assets_prev"].tolist()
+        m, bad = [0] * len(idx), set()
+        for i in range(1, len(idx)):
+            m[i] = m[i - 1]
+            if yrs[i] != yrs[i - 1] + 1 or not (V[i] and V[i - 1] and V[i] > 0 and V[i - 1] > 0):
                 continue
-            k = np.log10(p1 / a0)
-            near = round(k)
-            if abs(near) in (3, 6) and abs(10 ** (k - near) - 1) <= tol:
-                m[i1] = m[i0] + near
-            elif abs(k) > 1:       # 10배 넘게 다른데 10³·10⁶ 이 아님 — 확인 불가
-                bad |= {i0, i1}
-        if len(set(m.values())) > 1:
-            lv = pd.Series(m)
+            r = V[i] / V[i - 1]
+            fwd = near_pow(P[i] / V[i - 1]) if P[i] else None
+            nxt = i + 1 < len(idx) and yrs[i + 1] == yrs[i] + 1 and P[i + 1]
+            bwd = near_pow(V[i] / P[i + 1]) if nxt else None
+            # 확인된 배율로 나눈 뒤 남는 변화가 실제 성장 범위(0.2~5배)면 단위 오류.
+            # 점프를 반올림해 배율을 정하면 안 된다 — 100만 배 오류에 3.6배 성장이 겹치면 10⁵ 로 읽힌다(실측).
+            k = next((k for k in (fwd, bwd) if k is not None and 0.2 <= r / 10.0 ** k <= 5), None)
+            if k is not None:
+                m[i] = m[i - 1] + k
+            elif abs(np.log10(r)) >= 2.5:     # 수백 배 이상 뛰었는데 어느 공시도 배율을 확인하지 않음
+                bad |= {i - 1, i}
+        if len(set(m)) > 1:
+            lv = pd.Series(m, index=idx)
             med = g["_assets"].groupby(lv).median()
             ok = med[(med >= 1e9) & (med <= 6e14)].index
             cnt = lv.value_counts()
             pool = [x for x in cnt.index if x in ok] or list(cnt.index)
             base = max(pool, key=lambda x: (cnt[x], -abs(x)))
-            for i, x in m.items():
-                if x != base:
-                    f = 10.0 ** (x - base)
-                    log.append({"corp_code": cc, "bsns_year": g.at[i, "bsns_year"], "처리": f"금액 ÷ 10^{x - base}",
-                                "자산_수정전": g.at[i, "_assets"], "자산_수정후": g.at[i, "_assets"] / f})
+            for j, i in enumerate(idx):
+                if m[j] != base:
+                    f = 10.0 ** (m[j] - base)
+                    log.append({"corp_code": cc, "bsns_year": yrs[j], "처리": f"금액 × 10^{base - m[j]}",
+                                "자산_수정전": V[j], "자산_수정후": V[j] / f})
                     for c in ("_assets", "_revenue"):
-                        df.at[i, c] = df.at[i, c] / f if pd.notna(df.at[i, c]) else df.at[i, c]
+                        if pd.notna(df.at[i, c]):
+                            df.at[i, c] = df.at[i, c] / f
                     a = df.at[i, "_assets"]
                     df.at[i, "로그자산"] = np.log(a) if pd.notna(a) and a > 0 else np.nan
-        for i in bad:
-            log.append({"corp_code": cc, "bsns_year": g.at[i, "bsns_year"], "처리": "확인 불가 — 로그자산·증가율 결측",
-                        "자산_수정전": g.at[i, "_assets"], "자산_수정후": np.nan})
+        # 상장사로 불가능한 규모(자산 10억 원 미만)는 확인할 공시가 없다 — 로그자산만 결측 (docs/13 §2 보완)
+        for j, i in enumerate(idx):
+            a = df.at[i, "_assets"]
+            if pd.notna(a) and 0 < a < 1e9 and j not in bad:
+                log.append({"corp_code": cc, "bsns_year": yrs[j], "처리": "자산 10억 원 미만 — 로그자산 결측",
+                            "자산_수정전": a, "자산_수정후": np.nan})
+                df.at[i, "로그자산"] = np.nan
+        for j in sorted(bad):
+            i = idx[j]
+            log.append({"corp_code": cc, "bsns_year": yrs[j], "처리": "확인 불가 — 로그자산·증가율 결측",
+                        "자산_수정전": V[j], "자산_수정후": np.nan})
             df.at[i, "로그자산"] = np.nan
             df.at[i, "_unit_unconfirmed"] = 1
     return df, pd.DataFrame(log)
