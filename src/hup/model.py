@@ -23,9 +23,12 @@ def baseline():
 
 def ensemble(**kw):
     """결측을 그대로 먹고 추가 의존성이 없다. LightGBM 은 필요해지면 그때."""
+    # early_stopping 은 명시한다. 기본값 'auto' 는 **표본이 1만 건을 넘을 때만** 켜진다.
+    # 2026-10-10: 엠바고로 학습 표본이 11,376 → 9,273 이 되자 조기 종료가 꺼져 반복이 64 → 400 으로 바뀌었다.
+    # 데이터 크기가 모델 설정을 몰래 바꾸면 비교가 성립하지 않는다. 주 모델의 실제 설정(켜짐)으로 고정 (docs/13 §4).
     p = dict(max_iter=400, learning_rate=0.05, max_leaf_nodes=15,
              min_samples_leaf=30, l2_regularization=1.0,
-             class_weight="balanced", random_state=42)
+             early_stopping=True, class_weight="balanced", random_state=42)
     p.update(kw)
     return HistGradientBoostingClassifier(**p)
 
