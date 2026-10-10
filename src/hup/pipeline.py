@@ -44,6 +44,8 @@ def panel(corp_codes=None, years=None):
             if not dt:
                 continue
             a = features.extract(rows)
+            if features.empty_statement(a):
+                a = {k: None for k in a}
             r = features.ratios(a)
             ao = labels.current_period(dart.audit_opinion(cc, int(y)))
             r["감사의견판정"] = ("응답없음" if ao is None
@@ -51,11 +53,15 @@ def panel(corp_codes=None, years=None):
             r.update(corp_code=cc, bsns_year=int(y), rcept_dt=dt,
                      재무제표기준=fsdiv,          # CFS(연결) / OFS(별도) — 비율 수준이 달라진다
                      제출기한연장=float((cc, int(y)) in ext),
-                     _revenue=a["revenue"], _assets=a["assets"])
+                     _revenue=a["revenue"], _assets=a["assets"],
+                     _assets_prev=features.extract(rows, "frmtrm_amount")["assets"])
             out.append(r)
     df = pd.DataFrame(out)
     df["rcept_dt"] = pd.to_datetime(df["rcept_dt"], format="%Y%m%d", errors="coerce")
-    return features.add_changes(df.dropna(subset=["rcept_dt"]))
+    df, fixes = features.fix_units(df.dropna(subset=["rcept_dt"]))
+    out_ = config.RESULTS / "data_fix"; out_.mkdir(parents=True, exist_ok=True)
+    fixes.to_csv(out_ / "단위수정_내역.csv", index=False, encoding="utf-8-sig")
+    return features.add_changes(df)
 
 
 def meta(corp_codes=None):
@@ -81,6 +87,7 @@ def build(horizon=None, include_secondary=False):
     ev = labels.build(corps, config.YEARS, "20150101", "20261231", include_secondary)
 
     df = dataset.attach_labels(kept, ev, horizon)
+    df = dataset.mark_prior_events(df, ev)
     df.to_csv(config.PROCESSED / "dataset.csv", index=False)
     dropped.to_csv(config.PROCESSED / "excluded.csv", index=False)
     ev.to_csv(config.PROCESSED / "events.csv", index=False)
@@ -89,7 +96,7 @@ def build(horizon=None, include_secondary=False):
 
     sens = {}
     for h in config.HORIZON_SENSITIVITY:
-        d = dataset.attach_labels(kept, ev, horizon_days=h)
+        d = dataset.mark_prior_events(dataset.attach_labels(kept, ev, horizon_days=h), ev)
         sens[h] = (int(d["y"].sum()), float(d["y"].mean()))
         if h != (horizon or config.HORIZON_DAYS):
             d.to_csv(config.PROCESSED / f"dataset_h{h}.csv", index=False)

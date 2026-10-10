@@ -1057,7 +1057,7 @@ def final():
     df = pipeline.load()
     s_, rep, fin, _ = pipeline._prepare(df)
     use = pipeline._with_flags(s_, fin)
-    tr, te = s_["train"], s_["test"]
+    tr, te = s_["train_full"], s_["test"]   # 최종 모델: 학습 구간 전체 (docs/13 §3)
     est = model.ensemble().fit(tr[use], tr["y"])
     cal = model.calibrated(model.ensemble, "isotonic").fit(tr[use], tr["y"])
 
@@ -1084,7 +1084,7 @@ def final():
         d2 = pipeline.load(f)
         s2, _, fin2, _ = pipeline._prepare(d2)
         u2 = pipeline._with_flags(s2, fin2)
-        m2 = model.ensemble().fit(s2["train"][u2], s2["train"]["y"])
+        m2 = model.ensemble().fit(s2["train_full"][u2], s2["train_full"]["y"])
         p2 = m2.predict_proba(s2["test"][u2])[:, 1]
         r2 = model.evaluate(s2["test"]["y"], p2, n_boot=300)
         mark = "  <- 주 분석" if h == config.HORIZON_DAYS else ""

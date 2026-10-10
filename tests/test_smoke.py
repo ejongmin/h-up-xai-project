@@ -82,9 +82,14 @@ def test_split_is_chronological():
     # 개수를 박아두지 않는다 — 분할 정의가 바뀌면 테스트가 깨져야 하는 게 아니라
     # **분할이 시점 순인지**가 깨져야 한다 (sanity 가 이미 검사한다)
     from hup import config
+    full = {"train": "train_full", "valid": "valid", "test": "test"}
     for k, (a_, b_) in config.SPLIT.items():
-        assert rep[k]["n"] == b_ - a_ + 1, f"{k} 구간 행 수가 연도 수와 다르다"
-    assert sum(rep[k]["n"] for k in rep) == len(df)
+        assert rep[full[k]]["n"] == b_ - a_ + 1, f"{k} 구간 행 수가 연도 수와 다르다"
+    assert sum(rep[full[k]]["n"] for k in config.SPLIT) == len(df)
+    # 엠바고: 검증 단계 학습 표본의 라벨 창은 검증 첫날 전에 끝나야 한다 (docs/13 §3)
+    h = pd.Timedelta(config.HORIZON_DAYS, "D")
+    assert (s["train"]["rcept_dt"] + h < pd.Timestamp(config.SPLIT["valid"][0], 1, 1)).all()
+    assert rep["train"]["n"] < rep["train_full"]["n"], "마지막 학습 연도는 라벨 창이 검증으로 넘어가 빠져야 한다"
 
 
 def test_metrics_are_not_accuracy():
@@ -131,6 +136,37 @@ def test_card_does_not_overstate_absolute_facts():
     assert "표본 중앙값보다" in mild, "중앙값보다 나쁜 건 사실이므로 상대 문장으로는 남긴다"
     bad = explain.card(pd.Series({"순이익률": -0.2, "자본잠식률": 0.6, "유동비율": 0.5}), sv, cols, ref=ref)
     assert "순손실 상태입니다" in bad and "자본잠식이 진행" in bad and "부족합니다" in bad
+
+
+def test_unit_switch_confirmed_by_next_report():
+    """단위 전환은 같은 회사의 다음 해 공시(전기 금액)로 확인될 때만 고친다 (docs/13 §2).
+
+    2026-10-10: 2019년부터 천원 단위로 바뀐 회사(7년 연속)와 한 해만 100만 배인 보고서가 있었다.
+    """
+    from hup import features
+    df = pd.DataFrame({
+        "corp_code": ["A"] * 4 + ["B"] * 3 + ["C"] * 3,
+        "bsns_year": [2018, 2019, 2020, 2021, 2020, 2021, 2022, 2021, 2022, 2023],
+        # A: 2019 부터 천원 단위 (전기 금액도 같은 단위로 공시됨)
+        # B: 2021 보고서만 100만 배
+        # C: 2022 보고서 값과 2023 보고서의 전기 값이 1267배 — 10³·10⁶ 이 아니라 확인 불가
+        "_assets":      [1.4e11, 1.3e8, 1.5e8, 1.6e8, 5.0e10, 5.2e16, 5.4e10, 7.0e9, 9.0e12, 8.0e9],
+        "_assets_prev": [1.3e11, 1.4e8, 1.3e8, 1.5e8, 4.9e10, 5.0e16, 5.2e10, 6.0e9, 7.0e9, 7.1e9],
+        "_revenue":     [2e11, 2e8, 2e8, 2e8, 3e10, 3e16, 3e10, 1e9, 1e12, 1e9],
+    })
+    df["로그자산"] = np.log(df["_assets"])
+    out, log = features.fix_units(df)
+    a = out[out.corp_code == "A"].set_index("bsns_year")["_assets"]
+    assert a.between(1e11, 2e11).all(), "기준은 연도 수가 아니라 상장사로 가능한 규모의 구간이어야 한다"
+    b = out[out.corp_code == "B"].set_index("bsns_year")["_assets"]
+    assert abs(b[2021] - 5.2e10) < 1, "확인된 100만 배는 정확히 10⁶ 로 고친다"
+    c = out[out.corp_code == "C"].set_index("bsns_year")
+    assert c.loc[[2022, 2023], "로그자산"].isna().all(), "확인할 수 없으면 두 해 모두 결측"
+    assert c.loc[2021, "로그자산"] > 0, "불일치와 무관한 해는 그대로"
+    grown = features.add_changes(out.assign(**{k: 0.0 for k in features.CHANGE_VARS}, 영업손실=0.0))
+    assert grown[(grown.corp_code == "C") & (grown.bsns_year >= 2022)]["자산증가율"].isna().all()
+    assert np.isfinite(grown["자산증가율"].dropna()).all()
+    assert features.empty_statement({"assets": 0.0}) and features.empty_statement({"assets": None})
 
 
 def test_no_shadowed_definitions():

@@ -4,6 +4,7 @@
 자동 생성 파생변수는 쓰지 않는다 — 성능이 올라도 설명이 불가능해진다.
 """
 import numpy as np
+import pandas as pd
 
 # DART fnlttSinglAcntAll 계정 매핑.
 #   (재무제표 구분, 후보 account_id, 후보 account_nm)
@@ -36,15 +37,15 @@ ACCOUNTS = {
 SJ = {"BS": {"BS"}, "ISC": {"IS", "CIS"}, "CF": {"CF"}}
 
 
-def extract(rows):
-    """DART 전체 재무제표 응답 → 계정 딕셔너리 (당기 금액).
+def extract(rows, col="thstrm_amount"):
+    """DART 전체 재무제표 응답 → 계정 딕셔너리 (기본은 당기 금액, col="frmtrm_amount" 면 전기).
 
     account_id 를 먼저 보고, 없을 때만 계정명으로 폴백한다. 둘 다 재무제표 구분 안에서만 찾는다.
     """
     by_id, by_nm = {}, {}
     for r in rows:
         sj = r.get("sj_div")
-        v = (r.get("thstrm_amount") or "").replace(",", "").strip()
+        v = (r.get(col) or "").replace(",", "").strip()
         if v in ("", "-"):
             continue
         try:
@@ -107,6 +108,66 @@ def ratios(a):
     return r
 
 
+def empty_statement(a):
+    """자산총계가 없거나 0 이하 — 빈 재무제표 응답. 재무 변수 전체를 결측으로 둔다 (docs/13 §2-5).
+
+    2026-10-10: 0 으로 채워진 응답에서 '영업손실 아님' 같은 이진 변수가 거짓으로 만들어졌다.
+    """
+    return a.get("assets") is None or a["assets"] <= 0
+
+
+def fix_units(df, tol=0.01):
+    """보고서 사이 단위 전환을 같은 회사의 다른 공시로 확인해 금액을 고친다 (docs/13 §2).
+
+    같은 회계연도 자산총계는 그 해 보고서(_assets)와 다음 해 보고서의 전기(_assets_prev)에 두 번 나온다.
+    둘의 비가 10³·10⁶ (±tol) 이면 단위 전환으로 확인한다. 2026-10-10 실측: 한 회사는 2019년부터 7년 연속
+    천원 단위였고(전년 대비 변동 검사로는 전환 첫해만 잡혔다), 자산 5경 원짜리 보고서도 있었다.
+    비율은 같은 보고서 안에서 단위가 상쇄되므로 건드리지 않는다. 고치는 것은 금액(_assets, _revenue)과 로그자산.
+    반환: (고친 df, 수정 내역 DataFrame)
+    """
+    df = df.sort_values(["corp_code", "bsns_year"]).copy()
+    log = []
+    for cc, g in df.groupby("corp_code", sort=False):
+        idx = list(g.index)
+        m = {idx[0]: 0}            # 보고서별 상대 단위 지수 (log10)
+        bad = set()
+        for i0, i1 in zip(idx, idx[1:]):
+            m[i1] = m[i0]
+            if g.at[i1, "bsns_year"] != g.at[i0, "bsns_year"] + 1:
+                continue           # 연도가 비면 비교할 공시가 없다 — 같은 단위로 둔다
+            a0, p1 = g.at[i0, "_assets"], g.at[i1, "_assets_prev"]
+            if not (a0 and p1 and a0 > 0 and p1 > 0):
+                continue
+            k = np.log10(p1 / a0)
+            near = round(k)
+            if abs(near) in (3, 6) and abs(10 ** (k - near) - 1) <= tol:
+                m[i1] = m[i0] + near
+            elif abs(k) > 1:       # 10배 넘게 다른데 10³·10⁶ 이 아님 — 확인 불가
+                bad |= {i0, i1}
+        if len(set(m.values())) > 1:
+            lv = pd.Series(m)
+            med = g["_assets"].groupby(lv).median()
+            ok = med[(med >= 1e9) & (med <= 6e14)].index
+            cnt = lv.value_counts()
+            pool = [x for x in cnt.index if x in ok] or list(cnt.index)
+            base = max(pool, key=lambda x: (cnt[x], -abs(x)))
+            for i, x in m.items():
+                if x != base:
+                    f = 10.0 ** (x - base)
+                    log.append({"corp_code": cc, "bsns_year": g.at[i, "bsns_year"], "처리": f"금액 ÷ 10^{x - base}",
+                                "자산_수정전": g.at[i, "_assets"], "자산_수정후": g.at[i, "_assets"] / f})
+                    for c in ("_assets", "_revenue"):
+                        df.at[i, c] = df.at[i, c] / f if pd.notna(df.at[i, c]) else df.at[i, c]
+                    a = df.at[i, "_assets"]
+                    df.at[i, "로그자산"] = np.log(a) if pd.notna(a) and a > 0 else np.nan
+        for i in bad:
+            log.append({"corp_code": cc, "bsns_year": g.at[i, "bsns_year"], "처리": "확인 불가 — 로그자산·증가율 결측",
+                        "자산_수정전": g.at[i, "_assets"], "자산_수정후": np.nan})
+            df.at[i, "로그자산"] = np.nan
+            df.at[i, "_unit_unconfirmed"] = 1
+    return df, pd.DataFrame(log)
+
+
 CHANGE_VARS = ["영업이익률", "ROA", "부채비율", "유동비율", "총자산회전율", "영업현금흐름_매출"]
 
 
@@ -116,8 +177,13 @@ def add_changes(df, keys=("corp_code",), year_col="bsns_year"):
     g = df.groupby(list(keys))
     for c in CHANGE_VARS:
         df[f"Δ{c}"] = df[c] - g[c].shift(1)
-    df["매출증가율"] = g["_revenue"].pct_change(fill_method=None) if "_revenue" in df else np.nan
-    df["자산증가율"] = g["_assets"].pct_change(fill_method=None) if "_assets" in df else np.nan
+    # 분모 0 이면 무한대가 된다 — 결측으로 (docs/13 §2-6)
+    df["매출증가율"] = g["_revenue"].pct_change(fill_method=None).replace([np.inf, -np.inf], np.nan) if "_revenue" in df else np.nan
+    df["자산증가율"] = g["_assets"].pct_change(fill_method=None).replace([np.inf, -np.inf], np.nan) if "_assets" in df else np.nan
+    if "_unit_unconfirmed" in df:     # 단위를 확인할 수 없는 해의 금액은 증가율 계산에 쓰지 않는다
+        u = df["_unit_unconfirmed"].fillna(0) == 1
+        u_prev = g["_unit_unconfirmed"].shift(1).fillna(0) == 1
+        df.loc[u | u_prev, ["매출증가율", "자산증가율"]] = np.nan
     df["2년연속영업손실"] = ((df["영업손실"] == 1) & (g["영업손실"].shift(1) == 1)).astype(float)
     return df
 

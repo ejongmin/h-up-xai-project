@@ -31,6 +31,16 @@ def attach_labels(panel, events, horizon_days=None):
     return out
 
 
+def mark_prior_events(df, events):
+    """과거사건 = 그 기업의 **관측된** 첫 사건일 ≤ T. 특성이 아니라 분석 대상을 가르는 데만 쓴다 (docs/13 §1).
+
+    0 이면 '관측 기간 내 첫 부실' 집단(주 분석). 사건 원천이 2015-01 부터라 그 이전 이력은 모른다.
+    """
+    first = events.groupby("corp_code")["event_date"].min()
+    f = df["corp_code"].map(first)
+    return df.assign(과거사건=(f.notna() & (f <= df["rcept_dt"])).astype(int))
+
+
 def apply_exclusions(panel, meta):
     """meta: corp_code, corp_name, induty_code, acc_mt"""
     m = panel.merge(meta, on="corp_code", how="left")
@@ -47,11 +57,21 @@ def apply_exclusions(panel, meta):
     return m[m["_excl"] == ""].drop(columns=["_excl"]), m[m["_excl"] != ""][["corp_code", "bsns_year", "_excl"]]
 
 
-def split(df, spec=None):
-    """T 의 연도로 자른다. 무작위 분할은 쓰지 않는다."""
+def split(df, spec=None, horizon_days=None):
+    """T 의 연도로 자른다. 무작위 분할은 쓰지 않는다.
+
+    엠바고 (docs/13 §3, 2026-10-10): 학습 행의 라벨은 T 이후 horizon 일의 사건으로 정해진다.
+    2021년 공시 행의 라벨 창은 검증 구간까지 이어져, 검증 시점에는 알 수 없던 사건으로 학습하고 있었다.
+    "train" 은 T + horizon < 검증 첫날 인 행만 남긴 검증 단계용, "train_full" 은 학습 구간 전체(최종 모델용).
+    """
     spec = spec or config.SPLIT
     y = df["rcept_dt"].dt.year
-    return {k: df[(y >= a) & (y <= b)].copy() for k, (a, b) in spec.items()}
+    s = {k: df[(y >= a) & (y <= b)].copy() for k, (a, b) in spec.items()}
+    h = pd.Timedelta(horizon_days or config.HORIZON_DAYS, "D")
+    v0 = pd.Timestamp(spec["valid"][0], 1, 1)
+    s["train_full"] = s["train"]
+    s["train"] = s["train"][s["train"]["rcept_dt"] + h < v0].copy()
+    return s
 
 
 def fit_clean(train, cols=None, lo=0.01, hi=0.99):
@@ -87,8 +107,11 @@ def apply_clean(df, st, add_missing_flags=True):
 
 def sanity(splits):
     """분할이 실제로 시점 순인지 확인. 어기면 성능이 비현실적으로 좋아진다."""
-    tr, va, te = splits["train"], splits["valid"], splits["test"]
+    tr, va, te = splits["train_full"], splits["valid"], splits["test"]
     assert tr["rcept_dt"].max() < va["rcept_dt"].min(), "학습이 검증보다 늦다"
     assert va["rcept_dt"].max() < te["rcept_dt"].min(), "검증이 평가보다 늦다"
+    # 최종 모델은 train_full 로 학습한다 — 그 라벨 창이 평가 시작 전에 끝나야 한다
+    h = pd.Timedelta(config.HORIZON_DAYS, "D")
+    assert len(tr) == 0 or tr["rcept_dt"].max() + h < te["rcept_dt"].min(), "학습 라벨 창이 평가 구간과 겹친다"
     return {k: {"n": len(v), "사건": int(v["y"].sum()),
                 "사건비율": round(float(v["y"].mean()), 4)} for k, v in splits.items()}
