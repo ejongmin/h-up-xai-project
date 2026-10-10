@@ -1045,7 +1045,11 @@ def final():
         "순위·선별": "비보정 앙상블 — isotonic 은 계단함수라 동점을 만들어 순위 지표를 떨어뜨린다",
         "표시 확률": "isotonic 보정본 — 비보정은 확률이 실제의 7.6배로 부풀려진다",
         "변수": "재무비율 27개 + 결측 더미. 시장변수·공시행태는 보조 분석에만",
-        "학습 설계": "전수 학습 (매칭 학습은 검증 구간에서 더 나빴다: 0.253 vs 0.386)",
+        "학습 설계": "전수 학습 (매칭 학습은 검증 구간에서 이득을 확인하지 못했다)",
+        "학습 표본": "학습 구간 전체(train_full) — 라벨 창이 평가 시작 전에 끝난다 (docs/13 §3)",
+        "데이터": "공시 단위 오류 수정 후 (docs/13 §2, results/data_fix/단위수정_내역.csv)",
+        "성격": "데이터 오류 수정 후 재평가 — 이미 한 번 연 평가 구간이므로 독립 검증이 아니다",
+        "주 분석": "관측 기간 내 첫 부실 (과거사건==0). 전체·반복은 보조",
         "예측 창": f"{config.HORIZON_DAYS}일 (민감도 {list(config.HORIZON_SENSITIVITY)})",
         "분할": {k: list(v) for k, v in config.SPLIT.items()},
     }
@@ -1074,6 +1078,18 @@ def final():
         print(f"    PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  기준선 대비 {r['PR-AUC']/base:.1f}배")
         print(f"    ROC-AUC {r['ROC-AUC']:.4f}  재현율@정밀도0.3 {r['재현율@정밀도0.3']:.3f}"
               f"  Brier {r['Brier']:.4f}")
+
+    # 주 분석: 관측 기간 내 첫 부실 / 보조: 반복 부실 (docs/13 §1, §5)
+    for label, mask in (("관측 기간 내 첫 부실 (주 분석)", te["과거사건"] == 0), ("반복 부실 (보조)", te["과거사건"] == 1)):
+        sub = te[mask]
+        b = float(sub["y"].mean())
+        p = est.predict_proba(sub[use])[:, 1]
+        r = model.evaluate(sub["y"], p, n_boot=1000)
+        res[label] = {"n": int(len(sub)), "사건": int(sub["y"].sum()), "기준선": b,
+                      **{k: (list(v) if isinstance(v, tuple) else v) for k, v in r.items()}}
+        print(f"  {label}  n={len(sub):,} 사건={int(sub.y.sum())} 기준선 {b:.4f}")
+        print(f"    PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  기준선 대비 {r['PR-AUC']/b:.1f}배  "
+              f"재현율@정밀도0.3 {r['재현율@정밀도0.3']:.3f}")
 
     # 창 민감도도 평가 구간에서 한 번에
     print("\n  예측 창 민감도 (평가 구간)")
@@ -1329,29 +1345,35 @@ def threshold():
     use = pipeline._with_flags(s_, fin)
     tr, va = s_["train"], s_["valid"]
     est = model.ensemble().fit(tr[use], tr["y"])
-    p = est.predict_proba(va[use])[:, 1]
-    y = va["y"].to_numpy()
-    n, ev = len(y), int(y.sum())
-    print(f"검증 구간 {n:,}사 · 사건 {ev}건 ({y.mean():.2%})")
-    print("2년치이므로 연 {:,.0f}사를 심사한다고 보면 된다\n".format(n / 2))
-
-    order = np.argsort(-p)
-    rows = []
-    for pct in (1, 2, 3, 5, 10, 15, 20):
-        k = max(1, int(n * pct / 100))
-        sel = order[:k]
-        tp = int(y[sel].sum())
-        rows.append({
-            "상위 %": pct, "선별 기업수": k, "연 심사건수": round(k / 2),
-            "주당": round(k / 2 / 52, 1),
-            "잡은 사건": tp, "놓친 사건": ev - tp,
-            "정밀도": round(tp / k, 3), "재현율": round(tp / ev, 3),
-            "헛짚음(오탐)": k - tp,
-        })
-    t = pd.DataFrame(rows)
-    print(t.to_string(index=False))
+    p_all = est.predict_proba(va[use])[:, 1]
     out = config.RESULTS / "w14"; out.mkdir(parents=True, exist_ok=True)
-    t.to_csv(out / "임계값_선정근거.csv", index=False, encoding="utf-8-sig")
+
+    def table(mask, label, fname):
+        """집단 안에서 순위를 매긴다. 단위는 기업-연도 관측치 (docs/13 §1)."""
+        p, y = p_all[mask], va["y"].to_numpy()[mask]
+        n, ev = len(y), int(y.sum())
+        print(f"\n[{label}] 검증 구간 관측치 {n:,}건 · 사건 {ev}건 ({y.mean():.2%})")
+        order = np.argsort(-p)
+        rows = []
+        for pct in (1, 2, 3, 5, 10, 15, 20):
+            k = max(1, int(n * pct / 100))
+            tp = int(y[order[:k]].sum())
+            rows.append({
+                "상위 %": pct, "선별 관측치": k, "연 심사건수": round(k / 2),
+                "주당": round(k / 2 / 52, 1),
+                "잡은 사건": tp, "놓친 사건": ev - tp,
+                "정밀도": round(tp / k, 3), "재현율": round(tp / ev, 3),
+                "헛짚음(오탐)": k - tp,
+            })
+        t = pd.DataFrame(rows)
+        print(t.to_string(index=False))
+        t.to_csv(out / fname, index=False, encoding="utf-8-sig")
+        return rows
+
+    # 주 분석: 관측 기간 내 첫 부실 (docs/13 §1). 전체는 보조.
+    first = va["과거사건"].to_numpy() == 0
+    rows = table(first, "주 분석 — 관측 기간 내 첫 부실", "임계값_첫부실.csv")
+    table(np.ones(len(va), bool), "보조 — 전체 (첫 부실 + 반복)", "임계값_선정근거.csv")
 
     print("\n읽는 법 — 실무 질문으로 바꾸면")
     for r in rows:
@@ -1359,7 +1381,7 @@ def threshold():
             print(f"  상위 {r['상위 %']}% 를 보면 심사역이 주당 {r['주당']}건을 보고, "
                   f"{r['잡은 사건']}건을 잡고 {r['놓친 사건']}건을 놓치며 "
                   f"{r['헛짚음(오탐)']}건을 헛짚는다")
-    print(f"\n저장: {out}/임계값_선정근거.csv")
+    print(f"\n저장: {out}/임계값_첫부실.csv · 임계값_선정근거.csv")
 
 
 STEPS = {"corp": corp, "probe": probe, "fs": fs, "dryrun": dryrun, "build": build, "tables": tables, "eda": eda, "train": train,
