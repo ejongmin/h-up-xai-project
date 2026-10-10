@@ -1194,6 +1194,38 @@ def export():
         g.insert(0, "관측치", df[df.업종2.isin(big)].groupby("업종2").size())
         save(g.round(4), "2_업종별_비율중앙값", index=True)
 
+        # 2026-10-10 정민재 요청(docs/08): 한국은행은 합산비율(Σ분자/Σ분모)이라 중앙값과 바로 비교되지 않는다.
+        # dataset.csv 에는 비율만 남으므로 재무제표 캐시에서 금액을 다시 뽑는다 (API 호출 없음).
+        # 분자·분모가 둘 다 있는 기업-연도만 합산한다 — 없는 값을 0 으로 채우면 추출 실패가 '무차입'으로 둔갑한다.
+        from . import dart
+        keys = ["op_income", "interest_exp", "net_income", "assets", "liabilities",
+                "equity", "cur_assets", "cur_liab"]
+        # 합산은 극단값 하나가 업종 전체를 지배한다. 2026-10-10: 자산 5경 원(GDP 의 20배)짜리 행 하나가
+        # 업종 27 ROA 를 −32% 로 만들었다 — 공시 단위 오류. 자산 600조 초과(삼성전자보다 큼)이거나
+        # 전년·다음 해 대비 1000배 넘게 튀는 기업-연도는 합산에서 뺀다. 데이터셋은 고치지 않았다(docs/10 §4 #13).
+        z = df.sort_values(["corp_code", "bsns_year"])
+        g_ = z.groupby("corp_code")["_assets"]
+        jump = pd.concat([z["_assets"] / g_.shift(1), g_.shift(-1) / z["_assets"]], axis=1)
+        bad = (z["_assets"] > 6e14) | (jump > 1000).any(axis=1) | (jump < 1e-3).any(axis=1) | (z["_assets"] <= 0)
+        sub = df[df.업종2.isin(big) & ~bad.reindex(df.index).fillna(False)]
+        print(f"  합산에서 뺀 단위 의심 기업-연도 {int(bad.sum())}건")
+        amt = pd.DataFrame([features.extract(dart.financials(r.corp_code, int(r.bsns_year))[0])
+                            for r in sub.itertuples()], index=sub.index)[keys]
+        amt["업종2"] = sub["업종2"]
+        pairs = {"이자보상배율": ("op_income", "interest_exp"), "ROA": ("net_income", "assets"),
+                 "부채비율": ("liabilities", "equity"), "유동비율": ("cur_assets", "cur_liab")}
+
+        def agg(d):
+            out_ = {}
+            for nm, (a, b) in pairs.items():
+                ok = d[a].notna() & d[b].notna()
+                out_[nm] = d.loc[ok, a].sum() / d.loc[ok, b].sum()
+                out_[f"{nm}_n"] = int(ok.sum())
+            return pd.Series(out_)
+        s2 = amt.groupby("업종2").apply(agg, include_groups=False)
+        s2.loc["전산업(상위15업종)"] = agg(amt.drop(columns="업종2"))
+        save(s2.round(4), "2_업종별_합산비율", index=True)
+
     # 3. 관리종목 사유 판정
     f = config.MANUAL / "kind_events_후보.csv"
     if f.exists():

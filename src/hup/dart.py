@@ -90,13 +90,14 @@ def _cache_file(path, params):
 
 def get(path, **params):
     """JSON 엔드포인트 호출. 결과 없음은 빈 리스트를 돌려준다."""
-    if not config.DART_KEY:
-        raise DartError("DART_API_KEY 가 비어 있다. .env 를 확인할 것")
+    # 캐시가 먼저다. 키는 실제로 API 를 부를 때만 필요하다 — 캐시만 읽는 분석이 키 때문에 멈추면 안 된다.
     cf = _cache_file(path, params)
     if cf.exists():
         hit = _read_cache(cf)
         if hit is not None:
             return hit
+    if not config.DART_KEY:
+        raise DartError("DART_API_KEY 가 비어 있다. .env 를 확인할 것")
 
     global CALLS
     url = BASE + path + "?" + urllib.parse.urlencode({"crtfc_key": config.DART_KEY, **params})
