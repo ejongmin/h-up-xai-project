@@ -58,8 +58,14 @@ def opinion_coverage(corp_codes, years):
     return pd.DataFrame(rows)
 
 
-def audit_events(corp_codes, years):
-    """감사의견 비적정 사건. 반환: corp_code, event_date, event_type, detail"""
+def audit_events(corp_codes, years, first_dt=None):
+    """감사의견 비적정 사건. 반환: corp_code, event_date, event_type, detail
+
+    사건일 = **그 사업연도 사업보고서의 최초 접수일**(first_dt[(corp, FY)]) — 감사보고서가 공개되는 시점.
+    2026-10-13: 감사의견 응답의 rcept_no 는 **최신 정정본**이라, 그 날짜를 쓰면 FY t 보고서에 이미 적힌
+    비적정 의견이 T 이후 사건으로 밀려 같은 행의 라벨이 됐다(131행). 함정 A-1 이 일부 뚫려 있었다.
+    """
+    first_dt = first_dt or {}
     rows = []
     for cc in corp_codes:
         for y in years:
@@ -71,7 +77,9 @@ def audit_events(corp_codes, years):
                 rows.append({
                     "corp_code": cc, "bsns_year": int(y),
                     "event_type": "감사의견", "detail": op,
-                    "event_date": r.get("rcept_no", "")[:8],   # 접수번호 앞 8자리 = 접수일자
+                    # 최초 접수일을 모르면 응답 접수번호 날짜로 (건수는 build 가 출력)
+                    "event_date": first_dt.get((cc, int(y))) or r.get("rcept_no", "")[:8],
+                    "_fallback": (cc, int(y)) not in first_dt,
                 })
     return pd.DataFrame(rows)
 
@@ -213,12 +221,38 @@ def manual_events(path=None):
     return df[["corp_code", "bsns_year", "event_type", "detail", "event_date"]]
 
 
+def first_filing_dates(years):
+    """(corp, FY) → 그 사업보고서의 최초 접수일 (패널의 T 와 같은 출처)."""
+    return {(cc, int(y)): v["rcept_dt"] for cc, ys in dart.universe(years).items()
+            for y, v in ys.items() if v.get("rcept_dt")}
+
+
+def dedupe_rehab(ev, days=365):
+    """같은 기업의 직전 회생 공시 후 days 일 이내 공시는 같은 절차의 후속 공시로 보고 뺀다 (docs/13 §8-2).
+
+    2026-10-13: 첨부정정·개시결정·폐지결정이 따로 사건이 되어, 신청이 T 이전인 절차도 후속 공시가 창에 들어와 y=1 이 됐다.
+    """
+    r = ev[ev.event_type == "회생절차"].sort_values(["corp_code", "event_date"])
+    keep, last = [], {}
+    for i, row in r.iterrows():
+        prev = last.get(row.corp_code)
+        if prev is None or (row.event_date - prev).days > days:
+            keep.append(i)
+            last[row.corp_code] = row.event_date
+    return ev.drop(index=r.index.difference(keep))
+
+
 def build(corp_codes, years, bgn_de, end_de, include_secondary=False):
-    parts = [audit_events(corp_codes, years), rehab_events(bgn_de, end_de)]
+    au = audit_events(corp_codes, years, first_filing_dates(years))
+    if len(au):
+        print(f"  감사의견 사건 {len(au)}건 중 최초 접수일을 몰라 응답 날짜를 쓴 것 {int(au['_fallback'].sum())}건")
+        au = au.drop(columns="_fallback")
+    parts = [au, rehab_events(bgn_de, end_de)]
     if include_secondary:
         parts.append(manual_events())
     ev = pd.concat([p for p in parts if len(p)], ignore_index=True)
     ev["event_date"] = pd.to_datetime(ev["event_date"], format="%Y%m%d", errors="coerce")
     ev = ev.dropna(subset=["event_date"])
     # 같은 기업의 같은 날 중복 사건은 하나로
-    return ev.sort_values("event_date").drop_duplicates(["corp_code", "event_date", "event_type"])
+    ev = ev.sort_values("event_date").drop_duplicates(["corp_code", "event_date", "event_type"])
+    return dedupe_rehab(ev).sort_values("event_date")

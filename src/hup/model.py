@@ -55,17 +55,25 @@ def calibration_table(y, p, bins=5):
 
 
 def recall_at_precision(y, p, target=0.30):
-    """정밀도 target 이상을 유지하면서 잡을 수 있는 최대 재현율."""
-    order = np.argsort(-p)
-    y = np.asarray(y)[order]
+    """정밀도 target 이상을 유지하면서 잡을 수 있는 최대 재현율.
+
+    2026-10-13: 동점 묶음 한가운데서 끊으면 실제로 쓸 수 없는 임계값을 센다(isotonic 은 동점이 많다).
+    **고유 점수 경계에서만** 정밀도·재현율을 계산한다.
+    """
+    p = np.asarray(p, dtype=float)
+    order = np.argsort(-p, kind="mergesort")
+    y, p = np.asarray(y)[order], p[order]
     tp = np.cumsum(y)
-    prec = tp / np.arange(1, len(y) + 1)
-    rec = tp / max(y.sum(), 1)
+    n = np.arange(1, len(y) + 1)
+    last = np.r_[p[1:] != p[:-1], True]          # 각 동점 묶음의 마지막 위치
+    prec, rec = (tp / n)[last], (tp / max(y.sum(), 1))[last]
     ok = prec >= target
     return float(rec[ok].max()) if ok.any() else 0.0
 
 
-def evaluate(y, p, n_boot=1000, seed=0):
+def evaluate(y, p, n_boot=1000, seed=0, groups=None):
+    """groups(기업 코드)를 주면 **기업 단위 군집 부트스트랩** — 같은 기업의 여러 연도를 함께 뽑는다 (docs/13 §8-6).
+    행 단위로 뽑으면 기업 내 상관을 무시해 신뢰구간이 좁아진다."""
     base = {
         "PR-AUC": average_precision_score(y, p),
         "ROC-AUC": roc_auc_score(y, p),
@@ -80,9 +88,15 @@ def evaluate(y, p, n_boot=1000, seed=0):
                      else None)
     rng = np.random.default_rng(seed)
     y, p = np.asarray(y), np.asarray(p)
+    if groups is not None:
+        codes, inv = np.unique(np.asarray(groups), return_inverse=True)
+        members = [np.flatnonzero(inv == k) for k in range(len(codes))]
     boot = {k: [] for k in ("PR-AUC", "ROC-AUC", "재현율@정밀도0.3")}
     for _ in range(n_boot):
-        i = rng.integers(0, len(y), len(y))
+        if groups is not None:
+            i = np.concatenate([members[k] for k in rng.integers(0, len(codes), len(codes))])
+        else:
+            i = rng.integers(0, len(y), len(y))
         if y[i].sum() == 0:
             continue
         boot["PR-AUC"].append(average_precision_score(y[i], p[i]))

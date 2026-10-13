@@ -24,7 +24,7 @@ rows = []
 for label, extra in [("재무 27개 (현행)", []), ("+ 업종 더미 20개", list(dm.columns))]:
     tr_, va_ = s_["train"].join(dm), s_["valid"].join(dm)
     m = model.ensemble().fit(tr_[use + extra], tr_["y"])
-    r = model.evaluate(va_["y"], m.predict_proba(va_[use + extra])[:, 1], n_boot=1000)
+    r = model.evaluate(va_["y"], m.predict_proba(va_[use + extra])[:, 1], n_boot=1000, groups=va_["corp_code"])
     rows.append({"변수 집합": label, "PR-AUC": round(r["PR-AUC"], 4), "95%CI": r["PR-AUC_95CI"]})
     print(label, round(r["PR-AUC"], 4), r["PR-AUC_95CI"])
 pd.DataFrame(rows).to_csv(config.RESULTS / "w14" / "업종통제.csv", index=False, encoding="utf-8-sig")

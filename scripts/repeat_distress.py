@@ -24,12 +24,19 @@ m = model.ensemble().fit(tr[use], tr["y"])
 p = pd.Series(m.predict_proba(va[use])[:, 1], index=va.index)
 rows = []
 for label, mask in [("검증 전체", va.prior >= 0), ("첫 부실만 (과거 사건 없는 기업)", va.prior == 0), ("반복 (과거 사건 있는 기업)", va.prior == 1)]:
-    y = va.loc[mask, "y"]; r = model.evaluate(y, p[mask], n_boot=1000)
+    y = va.loc[mask, "y"]; r = model.evaluate(y, p[mask], n_boot=1000, groups=va.loc[mask, "corp_code"])
     base = y.mean()
     rows.append((label, int(mask.sum()), int(y.sum()), base, r["PR-AUC"], r["PR-AUC_95CI"], r["PR-AUC"]/base, r["재현율@정밀도0.3"]))
     print(f"  {label:<26} n={mask.sum():5,} 사건={int(y.sum()):3} 기준선 {base:.4f}  PR-AUC {r['PR-AUC']:.3f} {r['PR-AUC_95CI']}  {r['PR-AUC']/base:.1f}배  재현율@P0.3 {r['재현율@정밀도0.3']:.3f}")
+# 민감도: 재무 데이터가 T 이후 정정본인 행을 뺀다 (docs/13 §8-3)
+if "정정본재무" in va:
+    for label, mask in [("첫 부실 · 정정본 제외", (va.prior == 0) & (va["정정본재무"] == 0)), ("전체 · 정정본 제외", va["정정본재무"] == 0)]:
+        y = va.loc[mask, "y"]; r = model.evaluate(y, p[mask], n_boot=1000, groups=va.loc[mask, "corp_code"])
+        base = y.mean()
+        rows.append((label, int(mask.sum()), int(y.sum()), base, r["PR-AUC"], r["PR-AUC_95CI"], r["PR-AUC"]/base, r["재현율@정밀도0.3"]))
+        print(f"  {label:<26} n={mask.sum():5,} 사건={int(y.sum()):3} 기준선 {base:.4f}  PR-AUC {r['PR-AUC']:.3f} {r['PR-AUC_95CI']}  {r['PR-AUC']/base:.1f}배  재현율@P0.3 {r['재현율@정밀도0.3']:.3f}")
 # '과거 사건 여부' 하나만으로 순위를 매기면
-r0 = model.evaluate(va["y"], va["prior"] + 1e-6*np.random.default_rng(0).random(len(va)), n_boot=300)
+r0 = model.evaluate(va["y"], va["prior"] + 1e-6*np.random.default_rng(0).random(len(va)), n_boot=300, groups=va["corp_code"])
 print(f"  [대조] 과거 사건 여부 하나만     PR-AUC {r0['PR-AUC']:.3f} {r0['PR-AUC_95CI']}")
 # 상위 1% 구성
 k = int(round(len(va)*0.01)); top = p.sort_values(ascending=False).index[:k]

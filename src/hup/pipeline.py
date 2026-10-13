@@ -54,10 +54,13 @@ def panel(corp_codes=None, years=None):
                      재무제표기준=fsdiv,          # CFS(연결) / OFS(별도) — 비율 수준이 달라진다
                      제출기한연장=float((cc, int(y)) in ext),
                      _revenue=a["revenue"], _assets=a["assets"],
-                     _assets_prev=features.extract(rows, "frmtrm_amount")["assets"])
+                     _assets_prev=features.extract(rows, "frmtrm_amount")["assets"],
+                     # API 는 최신 정정본을 준다. 데이터의 실제 접수일이 T 보다 늦으면 T 이후 정보일 수 있다 (docs/13 §8-3)
+                     _data_rcept=max((r.get("rcept_no") or "")[:8] for r in rows))
             out.append(r)
     df = pd.DataFrame(out)
     df["rcept_dt"] = pd.to_datetime(df["rcept_dt"], format="%Y%m%d", errors="coerce")
+    df["정정본재무"] = (pd.to_datetime(df["_data_rcept"], format="%Y%m%d", errors="coerce") > df["rcept_dt"]).astype(int)
     df, fixes = features.fix_units(df.dropna(subset=["rcept_dt"]))
     out_ = config.RESULTS / "data_fix"; out_.mkdir(parents=True, exist_ok=True)
     fixes.to_csv(out_ / "단위수정_내역.csv", index=False, encoding="utf-8-sig")
@@ -113,10 +116,11 @@ def load(path=None):
                        parse_dates=["rcept_dt"], dtype={"corp_code": str})
 
 
-def _prepare(df, seed=42):
-    """시점 분할 → 학습 구간에서만 정제 기준 산출. 모든 비교가 같은 분할을 쓴다."""
-    s = dataset.split(df)
-    report = dataset.sanity(s)
+def _prepare(df, seed=42, horizon=None):
+    """시점 분할 → 학습 구간에서만 정제 기준 산출. 모든 비교가 같은 분할을 쓴다.
+    horizon: 그 데이터셋의 라벨 창(일). 엠바고가 창 길이를 따른다 (docs/13 §8-7)."""
+    s = dataset.split(df, horizon_days=horizon)
+    report = dataset.sanity(s, horizon)
     fin = [c for c in features.FEATURE_COLS if c in df.columns]
     mkt = [c for c in market.COLS if c in df.columns]
     st = dataset.fit_clean(s["train"], cols=fin + mkt)
@@ -136,7 +140,7 @@ def _fit_eval(s, use, seed=42, parts=("valid", "test")):
         fits[name] = est
         for part in parts:
             p = est.predict_proba(s[part][use])[:, 1]
-            scores[f"{name}/{part}"] = model.evaluate(s[part]["y"], p)
+            scores[f"{name}/{part}"] = model.evaluate(s[part]["y"], p, groups=s[part]["corp_code"])
     return fits, scores
 
 

@@ -144,19 +144,21 @@ def fix_units(df, lo=0.67, hi=1.5):
         m, bad = [0] * len(idx), set()
         for i in range(1, len(idx)):
             m[i] = m[i - 1]
+            if (i - 1) in bad:      # 직전 해가 확인 불가 이상값이면 그 값과 비교하지 않는다
+                continue
             if yrs[i] != yrs[i - 1] + 1 or not (V[i] and V[i - 1] and V[i] > 0 and V[i - 1] > 0):
                 continue
             r = V[i] / V[i - 1]
             fwd = near_pow(P[i] / V[i - 1]) if P[i] else None
-            nxt = i + 1 < len(idx) and yrs[i + 1] == yrs[i] + 1 and P[i + 1]
-            bwd = near_pow(V[i] / P[i + 1]) if nxt else None
+            # 2026-10-13: 다음 해 공시(P[i+1])로 확인하던 '뒤쪽 확인'을 뺐다 — T 시점에 없는 정보다 (docs/13 §8-4).
+            bwd = None
             # 확인된 배율로 나눈 뒤 남는 변화가 실제 성장 범위(0.2~5배)면 단위 오류.
             # 점프를 반올림해 배율을 정하면 안 된다 — 100만 배 오류에 3.6배 성장이 겹치면 10⁵ 로 읽힌다(실측).
             k = next((k for k in (fwd, bwd) if k is not None and 0.2 <= r / 10.0 ** k <= 5), None)
             if k is not None:
                 m[i] = m[i - 1] + k
-            elif abs(np.log10(r)) >= 2.5:     # 수백 배 이상 뛰었는데 어느 공시도 배율을 확인하지 않음
-                bad |= {i - 1, i}
+            elif abs(np.log10(r)) >= 2.5:     # 수백 배 이상 뛰었는데 이번 보고서의 전기 값이 배율을 확인하지 않음
+                bad.add(i)                    # → 이번 해 값이 이상값 (T 시점 정보만으로는 고칠 수 없어 결측)
         if len(set(m)) > 1:
             lv = pd.Series(m, index=idx)
             med = g["_assets"].groupby(lv).median()
@@ -197,6 +199,8 @@ def add_changes(df, keys=("corp_code",), year_col="bsns_year"):
     """전년 대비 변화폭. 수준값만큼 중요하다."""
     df = df.sort_values(list(keys) + [year_col]).copy()
     g = df.groupby(list(keys))
+    # 직전 행이 바로 전 해가 아니면(연도 공백) 변화량을 만들지 않는다 (docs/13 §8-5)
+    gap = (df[year_col] - g[year_col].shift(1)) != 1
     for c in CHANGE_VARS:
         df[f"Δ{c}"] = df[c] - g[c].shift(1)
     # 분모 0 이면 무한대가 된다 — 결측으로 (docs/13 §2-6)
@@ -206,7 +210,10 @@ def add_changes(df, keys=("corp_code",), year_col="bsns_year"):
         u = df["_unit_unconfirmed"].fillna(0) == 1
         u_prev = g["_unit_unconfirmed"].shift(1).fillna(0) == 1
         df.loc[u | u_prev, ["매출증가율", "자산증가율"]] = np.nan
-    df["2년연속영업손실"] = ((df["영업손실"] == 1) & (g["영업손실"].shift(1) == 1)).astype(float)
+    prev = g["영업손실"].shift(1)
+    df["2년연속영업손실"] = ((df["영업손실"] == 1) & (prev == 1)).astype(float)
+    df.loc[gap | prev.isna() | df["영업손실"].isna(), "2년연속영업손실"] = np.nan
+    df.loc[gap, [f"Δ{c}" for c in CHANGE_VARS] + ["매출증가율", "자산증가율"]] = np.nan
     return df
 
 

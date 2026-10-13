@@ -299,7 +299,7 @@ def tabpfn():
 
     rows = []
     m = model.ensemble().fit(tr[use], tr["y"])
-    r = model.evaluate(va["y"], m.predict_proba(va[use])[:, 1], n_boot=400)
+    r = model.evaluate(va["y"], m.predict_proba(va[use])[:, 1], n_boot=400, groups=va["corp_code"])
     rows.append(("우리 앙상블", r, 0.0))
 
     try:
@@ -311,7 +311,7 @@ def tabpfn():
         clf.fit(tr[use].to_numpy(dtype=float), tr["y"].to_numpy())
         p = clf.predict_proba(va[use].to_numpy(dtype=float))[:, 1]
         el = time.time() - t0
-        rows.append((f"TabPFN ({dev})", model.evaluate(va["y"], p, n_boot=400), el))
+        rows.append((f"TabPFN ({dev})", model.evaluate(va["y"], p, n_boot=400, groups=va["corp_code"]), el))
     except Exception as e:
         print(f"TabPFN 실행 실패: {type(e).__name__} {str(e)[:160]}")
 
@@ -358,7 +358,7 @@ def rolling():
         cols += [c for c in s2["train"].columns if c.endswith("_결측")]
         m = model.ensemble().fit(s2["train"][cols], s2["train"]["y"])
         p = m.predict_proba(s2["valid"][cols])[:, 1]
-        r = model.evaluate(s2["valid"]["y"], p, n_boot=400)
+        r = model.evaluate(s2["valid"]["y"], p, n_boot=400, groups=s2["valid"]["corp_code"])
         base = float(s2["valid"]["y"].mean())
         rows.append({"학습": f"{tr0}~{tr1}", "검증": f"{va0}~{va1}",
                      "검증n": len(s2["valid"]), "사건": int(s2["valid"].y.sum()),
@@ -413,7 +413,7 @@ def classic():
     rows = []
     for name, sc in (("Altman(1968) 형", alt_risk), ("Ohlson(1980) 형", ohl),
                      ("우리 로지스틱", ours_lr), ("우리 앙상블", ours)):
-        r = model.evaluate(y, pd.Series(sc).fillna(0), n_boot=400)
+        r = model.evaluate(y, pd.Series(sc).fillna(0), n_boot=400, groups=va["corp_code"])
         rows.append({"모형": name, "PR-AUC": round(r["PR-AUC"], 4),
                      "95%CI": r["PR-AUC_95CI"], "기준선대비": round(r["PR-AUC"] / base, 1),
                      "ROC-AUC": round(r["ROC-AUC"], 4),
@@ -454,7 +454,7 @@ def robust():
         use = pipeline._with_flags(s_, fin)
         m = model.ensemble().fit(s_["train"][use], s_["train"]["y"])
         p = m.predict_proba(s_["valid"][use])[:, 1]
-        r = model.evaluate(s_["valid"]["y"], p, n_boot=400)
+        r = model.evaluate(s_["valid"]["y"], p, n_boot=400, groups=s_["valid"]["corp_code"])
         rows.append({"라벨": name, "관측치": len(d), "사건": int(d["y"].sum()),
                      "사건비율": round(float(d["y"].mean()), 4),
                      "PR-AUC": round(r["PR-AUC"], 4), "95%CI": r["PR-AUC_95CI"],
@@ -575,7 +575,7 @@ def calibrate():
     for name, est in cands.items():
         est.fit(Xtr, ytr)
         p = est.predict_proba(Xva)[:, 1]
-        m = model.evaluate(yva, p, n_boot=300)
+        m = model.evaluate(yva, p, n_boot=300, groups=s["valid"]["corp_code"])
         print(f"{name}")
         print(f"   Brier {m['Brier']:.4f}  PR-AUC {m['PR-AUC']:.4f} {m['PR-AUC_95CI']}  "
               f"예측확률 평균 {p.mean():.4f}")
@@ -631,7 +631,7 @@ def w08():
     def ev(fit_df, label):
         m = model.ensemble().fit(fit_df[use], fit_df["y"])
         p = m.predict_proba(va[use])[:, 1]
-        r = model.evaluate(va["y"], p, n_boot=300)
+        r = model.evaluate(va["y"], p, n_boot=300, groups=va["corp_code"])
         print(f"  {label:<34} PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  "
               f"재현율@정밀도0.3 {r['재현율@정밀도0.3']:.3f}  n={len(fit_df):,}")
         return r
@@ -661,7 +661,7 @@ def w08():
                        ("가중 없음", model.ensemble(class_weight=None))]:
         m = est.fit(tr[use], tr["y"])
         p = m.predict_proba(va[use])[:, 1]
-        r = model.evaluate(va["y"], p, n_boot=300)
+        r = model.evaluate(va["y"], p, n_boot=300, groups=va["corp_code"])
         print(f"  {label:<34} PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}")
     neg = tr[tr.y == 0].sample(min(len(tr[tr.y == 0]), 10 * int(tr.y.sum())), random_state=0)
     ev(pd.concat([tr[tr.y == 1], neg]), "언더샘플링 (정상:사건 = 10:1)")
@@ -676,7 +676,7 @@ def w08():
             print(f"  {label:<34} 표본 부족 (n={len(d)}, 사건={int(d.y.sum())})")
             continue
         p = m.predict_proba(d[use])[:, 1]
-        r = model.evaluate(d["y"], p, n_boot=300)
+        r = model.evaluate(d["y"], p, n_boot=300, groups=d["corp_code"])
         print(f"  {label:<34} PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  "
               f"n={len(d):,} 사건={int(d.y.sum())}")
 
@@ -827,7 +827,8 @@ def faithful():
     n_card = n_bad = n_card_c = n_bad_c = 0
     bad_by_var = {}
     for i in risky[:150]:
-        row, contrib = X.iloc[i], pd.Series(sv[i], index=use)
+        # 문장 판정은 실제 카드와 같은 **원본 값**으로 (docs/13 §8-8)
+        row, contrib = df.loc[X.index[i]], pd.Series(sv[i], index=use)
         for name, c in contrib.items():
             if name not in allow or name.endswith("_결측"):
                 continue
@@ -856,7 +857,7 @@ def faithful():
     n_line = n_over = 0
     over_by_var = {}
     for i in risky[:150]:
-        row, s = X.iloc[i], pd.Series(sv[i], index=use)
+        row, s = df.loc[X.index[i]], pd.Series(sv[i], index=use)
         s = s[[c for c in s.index if c in allow and not explain._card_excluded(c)]]
         if explain._equity_wiped(row):
             s = s[[c for c in s.index if c not in explain.EQUITY_BASED]]
@@ -1037,7 +1038,7 @@ def w13():
         use = base_cols + [c for c in extra if c in s_["train"].columns]
         m = model.ensemble().fit(s_["train"][use].fillna(0), s_["train"]["y"])
         p = m.predict_proba(s_["valid"][use].fillna(0))[:, 1]
-        r = model.evaluate(s_["valid"]["y"], p, n_boot=300)
+        r = model.evaluate(s_["valid"]["y"], p, n_boot=300, groups=s_["valid"]["corp_code"])
         print(f"  {name:<22} PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  "
               f"재현율@정밀도0.3 {r['재현율@정밀도0.3']:.3f}")
     d.to_csv(config.PROCESSED / "dataset_signals.csv", index=False)
@@ -1088,7 +1089,7 @@ def final():
     res = {"기준선": base}
     for name, m in (("앙상블(비보정)", est), ("앙상블+isotonic (최종)", cal)):
         p = m.predict_proba(te[use])[:, 1]
-        r = model.evaluate(te["y"], p, n_boot=1000)
+        r = model.evaluate(te["y"], p, n_boot=1000, groups=te["corp_code"])
         res[name] = {k: (list(v) if isinstance(v, tuple) else v) for k, v in r.items()}
         print(f"  {name}")
         print(f"    PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  기준선 대비 {r['PR-AUC']/base:.1f}배")
@@ -1100,12 +1101,24 @@ def final():
         sub = te[mask]
         b = float(sub["y"].mean())
         p = est.predict_proba(sub[use])[:, 1]
-        r = model.evaluate(sub["y"], p, n_boot=1000)
+        r = model.evaluate(sub["y"], p, n_boot=1000, groups=sub["corp_code"])
         res[label] = {"n": int(len(sub)), "사건": int(sub["y"].sum()), "기준선": b,
                       **{k: (list(v) if isinstance(v, tuple) else v) for k, v in r.items()}}
         print(f"  {label}  n={len(sub):,} 사건={int(sub.y.sum())} 기준선 {b:.4f}")
         print(f"    PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  기준선 대비 {r['PR-AUC']/b:.1f}배  "
               f"재현율@정밀도0.3 {r['재현율@정밀도0.3']:.3f}")
+
+    # 민감도: 재무 데이터가 T 이후 정정본인 행을 뺀 결과 (docs/13 §8-3 — API 가 원본 값을 주지 않는다)
+    if "정정본재무" in te:
+        for label, mask in (("관측 기간 내 첫 부실 · 정정본 제외", (te["과거사건"] == 0) & (te["정정본재무"] == 0)),
+                            ("전체 · 정정본 제외", te["정정본재무"] == 0)):
+            sub = te[mask]
+            b = float(sub["y"].mean())
+            r = model.evaluate(sub["y"], est.predict_proba(sub[use])[:, 1], n_boot=1000, groups=sub["corp_code"])
+            res[label] = {"n": int(len(sub)), "사건": int(sub["y"].sum()), "기준선": b,
+                          **{k: (list(v) if isinstance(v, tuple) else v) for k, v in r.items()}}
+            print(f"  {label}  n={len(sub):,} 사건={int(sub.y.sum())}  PR-AUC {r['PR-AUC']:.4f} {r['PR-AUC_95CI']}  "
+                  f"기준선 대비 {r['PR-AUC']/b:.1f}배  재현율@정밀도0.3 {r['재현율@정밀도0.3']:.3f}")
 
     # 창 민감도도 평가 구간에서 한 번에
     print("\n  예측 창 민감도 (평가 구간)")
@@ -1114,11 +1127,11 @@ def final():
         if not f.exists():
             continue
         d2 = pipeline.load(f)
-        s2, _, fin2, _ = pipeline._prepare(d2)
+        s2, _, fin2, _ = pipeline._prepare(d2, horizon=h)
         u2 = pipeline._with_flags(s2, fin2)
         m2 = model.ensemble().fit(s2["train_full"][u2], s2["train_full"]["y"])
         p2 = m2.predict_proba(s2["test"][u2])[:, 1]
-        r2 = model.evaluate(s2["test"]["y"], p2, n_boot=300)
+        r2 = model.evaluate(s2["test"]["y"], p2, n_boot=300, groups=s2["test"]["corp_code"])
         mark = "  <- 주 분석" if h == config.HORIZON_DAYS else ""
         print(f"    창 {h}일  사건 {int(s2['test'].y.sum()):>3}  "
               f"PR-AUC {r2['PR-AUC']:.4f} {r2['PR-AUC_95CI']}  "

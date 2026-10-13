@@ -165,12 +165,14 @@ def test_unit_switch_confirmed_by_next_report():
     b = out[out.corp_code == "B"].set_index("bsns_year")["_assets"]
     assert abs(b[2021] - 5.2e10) < 1, "확인된 100만 배는 정확히 10⁶ 로 고친다"
     c = out[out.corp_code == "C"].set_index("bsns_year")
-    assert c.loc[[2021, 2022], "로그자산"].isna().all(), "확인할 수 없으면 두 해 모두 결측"
-    assert c.loc[2023, "로그자산"] > 0, "점프와 무관한 해는 그대로"
-    d = out[out.corp_code == "D"].set_index("bsns_year")["_assets"]
-    assert abs(d[2022] - 9.2e9) < 1 and d[[2020, 2021, 2023]].lt(1e10).all(), "당기 값만 틀린 해 하나만 고친다"
+    assert pd.isna(c.loc[2022, "로그자산"]), "확인할 수 없는 점프는 그 해를 결측"
+    assert c.loc[2021, "로그자산"] > 0 and c.loc[2023, "로그자산"] > 0, "점프와 무관한 해는 그대로"
+    # D: 당기 값만 틀린 보고서 — 다음 해 공시 없이는 확인할 수 없다(T 시점 정보만, 2026-10-13).
+    # 그 해만 결측으로 두고, 정상인 다음 해를 이상값과 비교해 1000배로 키우면 안 된다.
+    d = out[out.corp_code == "D"].set_index("bsns_year")
+    assert pd.isna(d.loc[2022, "로그자산"]) and d.loc[[2020, 2021, 2023], "_assets"].lt(1e10).all()
     grown = features.add_changes(out.assign(**{k: 0.0 for k in features.CHANGE_VARS}, 영업손실=0.0))
-    assert grown[(grown.corp_code == "C") & (grown.bsns_year.isin([2021, 2022, 2023]))]["자산증가율"].isna().all()
+    assert grown[(grown.corp_code == "C") & (grown.bsns_year.isin([2022, 2023]))]["자산증가율"].isna().all()
     assert np.isfinite(grown["자산증가율"].dropna()).all()
     assert features.empty_statement({"assets": 0.0}) and features.empty_statement({"assets": None})
 
@@ -198,6 +200,37 @@ def test_card_holds_untrustworthy_explanations():
     # 낮춘 요인의 방향 충돌은 보류 사유가 아니다 (원칙 ①)
     d = ok.copy(); d["자본잠식률"] = 0.6
     assert "보류" not in explain.card(d, np.array([0.5, 0.3, -0.2, 0.0]), cols, ref=ref)
+
+
+def test_own_year_audit_opinion_is_not_a_label():
+    """FY t 보고서에 이미 적힌 비적정 의견은 그 행의 라벨이 아니라 '과거 사건'이다 (2026-10-13).
+
+    감사의견 응답의 rcept_no 는 최신 정정본이라 그 날짜를 쓰면 T 이후 사건이 되어 동어반복이 됐다(131행).
+    """
+    from hup import dataset, labels
+    panel = pd.DataFrame({"corp_code": ["A", "A"], "bsns_year": [2021, 2022],
+                          "rcept_dt": pd.to_datetime(["2022-03-21", "2023-03-20"])})
+    first = {("A", 2021): "20220321", ("A", 2022): "20230320"}
+    # FY2021 비적정, 정정본은 2022-06 에 나왔다 — 사건일은 최초 접수일(2022-03-21)이어야 한다
+    ev = pd.DataFrame({"corp_code": ["A"], "bsns_year": [2021], "event_type": ["감사의견"],
+                       "detail": ["의견거절"], "event_date": [first[("A", 2021)]]})
+    ev["event_date"] = pd.to_datetime(ev["event_date"])
+    out = dataset.mark_prior_events(dataset.attach_labels(panel, ev), ev).set_index("bsns_year")
+    assert out.loc[2021, "y"] == 0, "자기 보고서에 적힌 의견으로 자기 행을 맞히면 동어반복"
+    assert out.loc[2022, "과거사건"] == 1 and out.loc[2021, "과거사건"] == 1
+    # 회생: 같은 절차의 후속 공시(정정·결정)는 사건이 아니다
+    r = pd.DataFrame({"corp_code": ["B"] * 3, "event_type": ["회생절차"] * 3, "detail": ["신청", "[첨부정정]신청", "개시결정"],
+                      "event_date": pd.to_datetime(["2022-01-10", "2022-01-20", "2022-03-01"])})
+    assert len(labels.dedupe_rehab(r)) == 1
+
+
+def test_recall_at_precision_respects_ties():
+    """동점 묶음 한가운데서 끊는 임계값은 실제로 쓸 수 없다 (2026-10-13)."""
+    from hup import model
+    y = np.array([1, 0, 1, 0, 0, 0])
+    p = np.array([0.9, 0.5, 0.5, 0.5, 0.5, 0.1])     # 0.5 동점 4개 중 1개만 양성
+    # 동점을 무시하면 '0.9 + 0.5 하나'로 정밀도 0.67·재현율 1.0 을 셀 수 있지만, 0.5 묶음은 통째로만 고를 수 있다
+    assert model.recall_at_precision(y, p, 0.5) == 0.5
 
 
 def test_no_shadowed_definitions():

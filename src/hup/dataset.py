@@ -105,13 +105,13 @@ def apply_clean(df, st, add_missing_flags=True):
     return out
 
 
-def sanity(splits):
+def sanity(splits, horizon=None):
     """분할이 실제로 시점 순인지 확인. 어기면 성능이 비현실적으로 좋아진다."""
     tr, va, te = splits["train_full"], splits["valid"], splits["test"]
     assert tr["rcept_dt"].max() < va["rcept_dt"].min(), "학습이 검증보다 늦다"
     assert va["rcept_dt"].max() < te["rcept_dt"].min(), "검증이 평가보다 늦다"
     # 최종 모델은 train_full 로 학습한다 — 그 라벨 창이 평가 시작 전에 끝나야 한다
-    h = pd.Timedelta(config.HORIZON_DAYS, "D")
+    h = pd.Timedelta(horizon or config.HORIZON_DAYS, "D")
     assert len(tr) == 0 or tr["rcept_dt"].max() + h < te["rcept_dt"].min(), "학습 라벨 창이 평가 구간과 겹친다"
     return {k: {"n": len(v), "사건": int(v["y"].sum()),
                 "사건비율": round(float(v["y"].mean()), 4)} for k, v in splits.items()}
