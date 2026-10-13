@@ -14,7 +14,7 @@ def prior(d):
     f = d["corp_code"].map(first)
     return (f.notna() & (f <= d["rcept_dt"])).astype(int)
 
-va = va.assign(prior=prior(va)); tr = tr.assign(prior=prior(tr))
+va = va.assign(prior=va["과거사건"]); tr = tr.assign(prior=tr["과거사건"])   # 데이터셋과 같은 정의 (labels 수정 반영)
 for name, d in [("학습", tr), ("검증", va)]:
     e = d[d.y == 1]
     print(f"{name}: 사건 {len(e)} 중 과거 사건 있는 기업 {e.prior.sum()} ({e.prior.mean():.1%}) · "
