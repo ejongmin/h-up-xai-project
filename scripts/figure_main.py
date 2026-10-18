@@ -15,7 +15,7 @@ def ci(x):
     return [float(v) for v in (x if isinstance(x, list) else str(x).strip("()").split(","))]
 
 panels = {
-    "검증 구간 2022~2023": [
+    "검증 구간 2022~2023 (참고)": [
         ("관측 기간 내\n첫 부실 (주 분석)", val.loc["첫 부실만 (과거 사건 없는 기업)"]),
         ("반복 부실", val.loc["반복 (과거 사건 있는 기업)"]),
         ("전체", val.loc["검증 전체"]),
@@ -36,18 +36,19 @@ INK, MUTED, SURF = "#0b0b0b", "#52514e", "#fcfcfb"
 
 plt.rcParams["font.family"] = ["AppleGothic", "sans-serif"]
 plt.rcParams["axes.unicode_minus"] = False
-fig, axes = plt.subplots(1, 2, figsize=(11, 4.8), sharey=True, facecolor=SURF)
+# 평가 구간이 본문, 검증 구간은 보조 — 폭으로 위계를 준다 (2026-10-18 발표 검토)
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.8), sharey=True, facecolor=SURF, gridspec_kw={"width_ratios": [1, 1.6]})
 for ax, (title, items) in zip(axes, panels.items()):
     ax.set_facecolor(SURF)
     for k, (name, r) in enumerate(items):
         p = float(r["PR-AUC"]); lo, hi = ci(r["PR-AUC_95CI"] if "PR-AUC_95CI" in r else r["95CI"])
         base = float(r["기준선"])
-        ax.bar(k, p, width=0.56, color=COL[name], zorder=2)
+        ax.bar(k, p, width=0.56, color=COL[name], alpha=1 if ax is axes[1] else 0.45, zorder=2)
         ax.errorbar(k, p, yerr=[[p - lo], [hi - p]], color=INK, lw=1, capsize=4, zorder=3)
         ax.hlines(base, k - 0.34, k + 0.34, colors=INK, linestyles=(0, (3, 2)), lw=1.2, zorder=4)
         ax.text(k, hi + 0.02, f"{p:.3f}\n기준선의 {p / base:.1f}배", ha="center", va="bottom", fontsize=9.5, color=INK)
     ax.set_xticks(range(3), [n for n, _ in items], fontsize=10, color=INK)
-    ax.set_title(title, fontsize=11, color=INK, loc="left")
+    ax.set_title(title, fontsize=11, color=INK if ax is axes[1] else MUTED, loc="left")
     ax.text(0, -0.26, share[title], transform=ax.transAxes, fontsize=9.5, color=MUTED)
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)
