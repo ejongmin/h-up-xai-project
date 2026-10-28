@@ -14,3 +14,7 @@ data/*.log
 results/팀원/dataset.xlsx
 results/w12/오분류_사례.csv
 data/processed_*/
+
+# 작업 도구 상태 · PowerPoint 잠금 파일
+.omc/
+~$*
