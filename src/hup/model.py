@@ -162,3 +162,36 @@ def ohlson_o(df):
          + 0.285 * df["2년연속영업손실"]
          - 0.521 * df["ΔROA"].fillna(0))
     return z
+
+
+# ---- 2차 연구 후보 모델과 튜닝 설정 (docs/15 §5-2, 2026-10-31 결과를 보기 전에 고정) ----
+# 모델당 20개. 모두 같은 전처리(학습 구간 기준 윈저라이즈·중앙값 대치·결측 더미)와 같은 변수, 같은 검증 자료로 고른다.
+def _hgb_grid():
+    import itertools
+    import random
+    full = list(itertools.product((0.03, 0.05, 0.1), (7, 15, 31), (20, 50, 100), (0.0, 1.0)))
+    return sorted(random.Random(0).sample(full, 20))      # 54개 중 시드 0 으로 20개 — 목록은 docs/15 §5-2 에 그대로 적었다
+
+
+GRIDS = {
+    "로지스틱": [{"C": c, "penalty": p} for p in ("l2", "l1") for c in (0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30)],
+    "HistGB": [{"learning_rate": lr, "max_leaf_nodes": ln, "min_samples_leaf": ms, "l2_regularization": l2}
+               for lr, ln, ms, l2 in _hgb_grid()],
+    "랜덤포레스트": [{"max_depth": d, "min_samples_leaf": m} for d in (None, 6, 10, 16) for m in (1, 5, 20, 50, 100)],
+}
+
+
+def candidate(name, **p):
+    """후보 모델 생성. 고정 항목(클래스 가중·반복 수·시드)은 여기서만 정한다."""
+    if name == "로지스틱":
+        return Pipeline([("impute", SimpleImputer(strategy="median")), ("scale", StandardScaler()),
+                         ("clf", LogisticRegression(C=p["C"], penalty=p["penalty"], solver="liblinear",
+                                                    class_weight="balanced", max_iter=5000))])
+    if name == "HistGB":
+        return ensemble(**p)
+    if name == "랜덤포레스트":
+        from sklearn.ensemble import RandomForestClassifier
+        return Pipeline([("impute", SimpleImputer(strategy="median")),
+                         ("clf", RandomForestClassifier(n_estimators=500, max_features="sqrt", class_weight="balanced_subsample",
+                                                        n_jobs=-1, random_state=42, **p))])
+    raise KeyError(name)

@@ -53,12 +53,20 @@ def panel(corp_codes=None, years=None):
                 continue
             # 기준시점은 최초 접수일. 재무제표 응답의 rcept_no 는 정정본일 수 있다.
             dt = info.get("rcept_dt") or _rcept_dt(rows)
-            if config.FIN_SOURCE == "xbrl" and dt:
-                # 접수번호 날짜가 목록 접수일보다 늦은 경우가 있다(2026-10-31 실측 3건: 자정 넘김 1, 2025-08 재제출 2).
-                # 그 값은 접수번호 날짜에야 공개됐다 — T 를 둘 중 늦은 날로 둔다 (docs/15 §3)
-                dt = max(dt, rc[0][:8])
             if not dt:
                 continue
+            data_dt = max((r.get("rcept_no") or "")[:8] for r in rows)
+            if config.FIN_SOURCE == "xbrl" and data_dt > dt:
+                # 접수번호 날짜가 목록 접수일보다 늦다 (2026-10-31 실측 3건, docs/15 §3-1). 두 경우를 가른다.
+                #  - 하루 차이: 같은 최초 공시가 자정을 넘겨 번호를 받은 것 → 최초 공개 자료로 확인, T 그대로
+                #  - 그 이상: 몇 달 뒤 다시 등록된 파일 → 최초 공개 시점의 값인지 확인할 수 없다. 주 분석에서 빼고 따로 남긴다
+                #    (T 를 늦추면 '최초 공시 시점의 예측'과 다른 문제가 된다)
+                gap = (pd.Timestamp(data_dt) - pd.Timestamp(dt)).days
+                if gap <= 1:
+                    data_dt = dt
+                else:
+                    checks.TIME_UNCONFIRMED.append({"corp_code": cc, "bsns_year": int(y), "목록접수일": dt, "접수번호": rc[0]})
+                    continue
             a = features.extract(rows)
             if features.empty_statement(a):
                 a = {k: None for k in a}
@@ -72,7 +80,7 @@ def panel(corp_codes=None, years=None):
                      _revenue=a["revenue"], _assets=a["assets"],
                      _assets_prev=features.extract(rows, "frmtrm_amount")["assets"],
                      # API 는 최신 정정본을 준다. 데이터의 실제 접수일이 T 보다 늦으면 T 이후 정보일 수 있다 (docs/13 §8-3)
-                     _data_rcept=max((r.get("rcept_no") or "")[:8] for r in rows))
+                     _data_rcept=data_dt)
             out.append(r)
     df = pd.DataFrame(out)
     if "_원본없음" in df:       # 원본 XBRL 이 없는 행은 패널에서 빼고 검사 보고서에 수를 남긴다 (docs/15 §3-3)

@@ -13,6 +13,7 @@ import pandas as pd
 from . import config
 
 NO_SOURCE = []          # 원본 XBRL 이 없어 패널에서 빠진 행 (pipeline.panel 이 채운다)
+TIME_UNCONFIRMED = []   # 접수번호가 목록 접수일보다 이틀 이상 늦어 최초 공개 자료인지 확인할 수 없는 행 — 주 분석 제외
 
 
 class GateError(RuntimeError):
@@ -85,7 +86,9 @@ def gate(df, ev, horizon=None):
         + [{"등급": "검토", "검사": "검토 대상 행 (학습·평가 제외)", "건수": int(df["검토필요"].sum())},
            {"등급": "검토", "검사": "그중 사건 행", "건수": int(df.loc[df["검토필요"] == 1, "y"].sum())},
            {"등급": "처리", "검사": "연결↔별도 기준 변경 → 변화량 결측", "건수": int(sw.sum())},
-           {"등급": "처리", "검사": "원본 XBRL 없음 → 패널 제외 (1차에서 재무가 비어 빠졌던 행 포함)", "건수": len(NO_SOURCE)}])
+           {"등급": "처리", "검사": "원본 XBRL 없음 → 패널 제외 (1차에서 재무가 비어 빠졌던 행 포함)", "건수": len(NO_SOURCE)},
+           {"등급": "처리", "검사": "최초 공개 자료 확인 불가(재등록 파일) → 주 분석 제외", "건수": len(TIME_UNCONFIRMED)}])
+    pd.DataFrame(TIME_UNCONFIRMED).to_csv(out / "시점확인불가.csv", index=False, encoding="utf-8-sig")
     summary.to_csv(out / "검사요약.csv", index=False, encoding="utf-8-sig")
     print(summary.to_string(index=False))
     bad = {k: v for k, v in hard.items() if v}
