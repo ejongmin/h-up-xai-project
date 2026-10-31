@@ -37,7 +37,12 @@ prep = {"변수": st["cols"], "이진": st["binary"], "윈저라이즈": st["cli
         "하한(1%)": st["lo"].round(10).to_dict(), "상한(99%)": st["hi"].round(10).to_dict(), "대치값(중앙값)": st["med"].round(10).to_dict()}
 (OUT / "전처리기준.json").write_text(json.dumps(prep, ensure_ascii=False, indent=1, default=float))
 
-# 모델 압축본 — 같은 예측을 내는지 검증 구간에서 확인하고 묶는다
+# 모델 압축본 — 같은 예측을 내는지 검증 구간에서 확인하고 묶는다.
+# 2026-11-01: 숲의 병렬 합산(n_jobs=-1)은 같은 모델을 두 번 돌려도 3e-16 수준으로 달라진다 → 동결본은 단일 스레드로 예측해
+# 비트 단위로 같은 결과를 낸다(임계값을 넘나드는 예측은 0건으로 확인).
+for m in (b["model"], *[c.estimator for c in b["calibrated"].calibrated_classifiers_]):
+    if hasattr(m, "set_params") and "clf__n_jobs" in m.get_params():
+        m.set_params(clf__n_jobs=1)
 joblib.dump(b, OUT / "모델.joblib", compress=3)
 b2 = joblib.load(OUT / "모델.joblib")
 va = clean["valid"][b["use"]]
@@ -58,7 +63,7 @@ files = ["src/hup/" + f for f in ("config.py", "dart.py", "xbrl.py", "checks.py"
 spec = {
     "동결": git("log", "-1", "--format=%cs"), "커밋": git("rev-parse", "HEAD"),
     "성격": "2차 최종 모델·평가 절차. 독립 평가는 이 명세의 파일과 규칙으로만 한다 (docs/15 §6).",
-    "환경": {"python": sys.version.split()[0], "scikit-learn": sklearn.__version__, "numpy": np.__version__, "pandas": pd.__version__,
+    "환경": {"예측": "단일 스레드(n_jobs=1) — 병렬 합산 오차(약 3e-16) 없이 재현", "python": sys.version.split()[0], "scikit-learn": sklearn.__version__, "numpy": np.__version__, "pandas": pd.__version__,
              "주의": "joblib 은 scikit-learn 판에 묶인다 — 같은 판에서 불러올 것"},
     "학습 데이터": {"dataset.csv sha256": sha(config.PROCESSED / "dataset.csv"), "MANIFEST": json.loads((config.PROCESSED / "MANIFEST.json").read_text()),
                 "학습 표본": {"n": len(s["train"]), "사건": int(s["train"]["y"].sum()), "규칙": "T 2016~2021 중 T+400일 < 2022-01-01 (엠바고), 검토필요=0"}},
