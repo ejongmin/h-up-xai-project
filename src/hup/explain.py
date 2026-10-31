@@ -156,8 +156,16 @@ def sentence(name, v, ref, contrib):
 def shap_values(model, X, background=None):
     """HistGB 는 TreeExplainer, 로지스틱은 선형 기여도로 계산한다."""
     import shap
+    # 2차 랜덤포레스트는 Pipeline(중앙값 대치 → 숲). 입력이 이미 대치된 값이면 대치 단계는 아무것도 하지 않으므로
+    # 숲만 꺼내 TreeExplainer 에 넣는다. 표준화가 있는 로지스틱 Pipeline 은 그대로 둔다(선형 설명으로 간다).
+    if hasattr(model, "steps") and [n for n, _ in model.steps[:-1]] == ["impute"] and not X.isna().any().any():
+        model = model.steps[-1][1]
     try:
-        return shap.TreeExplainer(model).shap_values(X)
+        sv = shap.TreeExplainer(model).shap_values(X)
+        if isinstance(sv, list):                 # 분류 숲: 클래스별 목록 → 부실(1) 쪽
+            sv = sv[1]
+        sv = np.asarray(sv)
+        return sv[..., 1] if sv.ndim == 3 else sv
     except Exception:
         ex = shap.LinearExplainer(model, background if background is not None else X)
         return ex.shap_values(X)

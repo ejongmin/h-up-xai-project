@@ -19,3 +19,5 @@ data/processed_*/
 .omc/
 ~$*
 results/v2/data_check/검토대상.csv
+site/data/local_names.js
+data/usability/

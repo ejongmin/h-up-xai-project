@@ -3,75 +3,83 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>부실 예측 설명 카드</title>
+<title>기업 위험 검토 도구</title>
 <style>
 :root{
-  --bg:#f6f4ef; --surface:#ffffff; --surface2:#efece4; --ink:#15202b; --ink2:#4a5260; --muted:#7a828e;
+  --bg:#f6f4ef; --surface:#ffffff; --surface2:#efece4; --ink:#15202b; --ink2:#4a5260; --muted:#737b87;
   --line:#ddd8cd; --navy:#2f5d8a; --navy-soft:#e3eaf2; --terra:#b5461a; --terra-soft:#f6e3d8;
-  --amber:#a86a00; --amber-soft:#f8ecd2; --grey-soft:#ebe9e4; --shadow:0 1px 2px rgba(21,32,43,.06),0 4px 14px rgba(21,32,43,.06);
+  --amber:#9a6200; --amber-soft:#f8ecd2; --grey-soft:#ebe9e4; --shadow:0 1px 2px rgba(21,32,43,.06),0 4px 14px rgba(21,32,43,.06);
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#12181f; --surface:#1a222b; --surface2:#222c37; --ink:#eef1f4; --ink2:#b9c1cb; --muted:#8a94a0;
+  --bg:#12181f; --surface:#1a222b; --surface2:#222c37; --ink:#eef1f4; --ink2:#b9c1cb; --muted:#8f99a5;
   --line:#2f3a46; --navy:#8fb3d9; --navy-soft:#1f2f42; --terra:#f0a06e; --terra-soft:#3a261c;
   --amber:#e6b450; --amber-soft:#382d17; --grey-soft:#262f39; --shadow:none; color-scheme:dark;}}
 :root[data-theme="dark"]{
-  --bg:#12181f; --surface:#1a222b; --surface2:#222c37; --ink:#eef1f4; --ink2:#b9c1cb; --muted:#8a94a0;
+  --bg:#12181f; --surface:#1a222b; --surface2:#222c37; --ink:#eef1f4; --ink2:#b9c1cb; --muted:#8f99a5;
   --line:#2f3a46; --navy:#8fb3d9; --navy-soft:#1f2f42; --terra:#f0a06e; --terra-soft:#3a261c;
   --amber:#e6b450; --amber-soft:#382d17; --grey-soft:#262f39; --shadow:none; color-scheme:dark;}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}
 .wrap{max-width:1180px;margin:0 auto;padding-inline:20px}
-header{padding-block:28px 8px}
+header{padding-block:28px 6px}
 .eyebrow{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--terra)}
-h1{font-size:28px;line-height:1.25;margin:6px 0 6px}
-.lede{color:var(--ink2);margin:0;max-width:760px}
-.banner{margin-top:14px;padding:10px 14px;border-radius:10px;background:var(--amber-soft);color:var(--ink);font-size:13.5px}
-.banner b{color:var(--amber)}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0 6px}
-.stat{background:var(--surface);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
-.stat .n{font-size:26px;font-weight:800;line-height:1.1}
-.stat .l{font-size:12.5px;color:var(--ink2);margin-top:2px}
-.controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid var(--line)}
+h1{font-size:28px;line-height:1.25;margin:6px 0 8px}
+.lede{color:var(--ink2);margin:0;max-width:800px;font-size:15.5px}
+.can{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:16px}
+.can div{background:var(--surface);border-radius:12px;padding:12px 16px;box-shadow:var(--shadow);font-size:13.5px;color:var(--ink2)}
+.can b{display:block;color:var(--ink);margin-bottom:4px;font-size:14px}
+.can .no b{color:var(--terra)}
+.links{margin-top:10px;font-size:13px;color:var(--muted)}
+.links a{color:var(--navy)}
+h2.sec{font-size:15px;margin:22px 0 10px;color:var(--ink2)}
+.demo{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.demo button{all:unset;box-sizing:border-box;cursor:pointer;background:var(--surface);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);border:1.5px solid transparent}
+.demo button:hover,.demo button:focus-visible{border-color:var(--navy)}
+.demo .k{font-size:12px;font-weight:700;letter-spacing:.06em}
+.demo .t{font-weight:700;margin-top:4px}
+.demo .d{font-size:13px;color:var(--ink2);margin-top:4px}
+.controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid var(--line);margin-top:18px}
 .seg{display:inline-flex;background:var(--surface);border-radius:999px;padding:3px;box-shadow:var(--shadow)}
 .seg button{border:0;background:transparent;color:var(--ink2);font:inherit;font-size:13.5px;padding:6px 12px;border-radius:999px;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);font-weight:700}
 select,input[type=search]{font:inherit;font-size:13.5px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
 input[type=search]{width:120px}
 .count{margin-left:auto;color:var(--muted);font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding-block:18px 40px}
-.tile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;background:var(--surface);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);cursor:pointer;border:1.5px solid transparent;transition:transform .12s,border-color .12s}
-.tile:hover,.tile:focus-visible{border-color:var(--navy);transform:translateY(-1px)}
+.groupnote{font-size:13px;color:var(--ink2);padding-top:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding-block:14px 40px}
+.tile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;background:var(--surface);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);cursor:pointer;border:1.5px solid transparent}
+.tile:hover,.tile:focus-visible{border-color:var(--navy)}
 .tile.hold{background:transparent;border:1.5px dashed var(--line)}
 .meta{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--ink2)}
 .chip{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .chip.통과{background:var(--navy-soft);color:var(--navy)}
 .chip.교정{background:var(--amber-soft);color:var(--amber)}
 .chip.보류{background:var(--grey-soft);color:var(--ink2)}
-.prob{display:flex;align-items:baseline;gap:8px}
-.prob .v{font-size:28px;font-weight:800;color:var(--terra)}
-.prob .r{font-size:12.5px;color:var(--muted)}
-.bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden}
-.bar i{display:block;height:100%;background:var(--terra);border-radius:3px}
-.first{font-size:13.5px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.9em}
-.grp{font-size:11.5px;color:var(--muted)}
+.rank{display:flex;align-items:baseline;gap:6px}
+.rank .v{font-size:26px;font-weight:800;color:var(--terra)}
+.rank .r{font-size:12.5px;color:var(--muted)}
+.first{font-size:13.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.9em}
 .empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px}
-/* detail */
-dialog{border:0;padding:0;border-radius:16px;width:min(860px,calc(100vw - 24px));max-height:calc(100dvh - 32px);background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog{border:0;padding:0;border-radius:16px;width:min(900px,calc(100vw - 24px));max-height:calc(100dvh - 32px);background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
 dialog::backdrop{background:rgba(10,15,20,.55)}
-.dhead{position:sticky;top:0;background:var(--surface);padding:18px 22px 12px;border-bottom:1px solid var(--line);display:flex;gap:16px;align-items:flex-start;z-index:1}
+.dhead{position:sticky;top:0;background:var(--surface);padding:16px 22px 12px;border-bottom:1px solid var(--line);display:flex;gap:16px;align-items:flex-start;z-index:1}
 .dhead .t{flex:1}
 .dhead h2{margin:2px 0 0;font-size:20px}
 .x{all:unset;cursor:pointer;font-size:22px;line-height:1;padding:4px 8px;border-radius:8px;color:var(--ink2)}
 .x:hover{background:var(--surface2)}
-.dbody{padding:16px 22px 24px;display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
-.hero{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;background:var(--surface2);border-radius:12px;padding:14px 18px}
-.hero .v{font-size:40px;font-weight:800;color:var(--terra);line-height:1}
+.dbody{padding:14px 22px 24px;display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+.step{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px}
+.step .n{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--bg);font-weight:800;font-size:13px;display:grid;place-items:center}
+.step h3{font-size:15px;margin:2px 0 8px}
+.when{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.when div{background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:13.5px}
+.when b{display:block;font-size:16px}
+.hero{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;background:var(--surface2);border-radius:12px;padding:12px 16px}
+.hero .v{font-size:34px;font-weight:800;color:var(--terra);line-height:1}
 .hero .sub{font-size:13px;color:var(--ink2)}
-.reveal{all:unset;cursor:pointer;font-size:13px;font-weight:700;color:var(--navy);margin-top:6px;display:inline-block}
-.outcome{font-size:13.5px;font-weight:700;margin-top:6px}
-h3{font-size:14px;margin:0 0 8px;color:var(--ink2);letter-spacing:.02em}
-.factor{display:grid;grid-template-columns:1fr 180px;gap:6px 16px;padding:10px 0;border-top:1px solid var(--line)}
+.alert{font-size:12px;font-weight:700;color:var(--terra);background:var(--terra-soft);padding:2px 8px;border-radius:999px}
+.factor{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:6px 16px;padding:10px 0;border-top:1px solid var(--line)}
 .factor:first-of-type{border-top:0}
 .factor .s{font-weight:700}
 .factor .nv{font-size:12.5px;color:var(--ink2)}
@@ -84,34 +92,37 @@ h3{font-size:14px;margin:0 0 8px;color:var(--ink2);letter-spacing:.02em}
 .contrib{font-size:12px;color:var(--ink2)}
 .contrib .b{display:inline-block;height:8px;border-radius:2px;vertical-align:middle;margin-right:6px;background:var(--terra)}
 .contrib .b.neg{background:var(--navy)}
-.cf{display:grid;gap:10px}
-.cfrow .p{font-size:13.5px}
-.dumb{position:relative;height:16px;margin-top:4px}
-.dumb .ln{position:absolute;top:7px;height:2px;background:var(--line)}
-.dumb .a,.dumb .b{position:absolute;top:2px;width:12px;height:12px;margin-left:-6px;border-radius:50%}
-.dumb .a{background:var(--terra)} .dumb .b{background:var(--navy)}
-.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+table.rt{width:100%;border-collapse:collapse;font-size:13.5px}
+table.rt th{text-align:left;font-weight:600;color:var(--ink2);font-size:12.5px;border-bottom:1px solid var(--line);padding:6px 8px}
+table.rt td{border-bottom:1px solid var(--line);padding:6px 8px;vertical-align:middle}
+table.rt td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tw{overflow-x:auto}
+.src{margin-top:10px;font-size:13px}
+.src a{color:var(--navy);font-weight:700}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
 .ck{display:flex;gap:8px;align-items:flex-start;font-size:13px;background:var(--surface2);border-radius:10px;padding:8px 10px}
 .ck .i{font-weight:800;width:18px;text-align:center}
 .ck.ok .i{color:var(--navy)} .ck.bad .i{color:var(--terra)} .ck.fix .i{color:var(--amber)}
-.ba{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;font-size:13.5px}
+.ba{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;font-size:13.5px;margin-top:10px}
 .ba .o{background:var(--terra-soft);border-radius:10px;padding:8px 10px;text-decoration:line-through;text-decoration-color:var(--terra)}
-.ba .n{background:var(--navy-soft);border-radius:10px;padding:8px 10px}
+.ba .nw{background:var(--navy-soft);border-radius:10px;padding:8px 10px}
 .holdbox{border:1.5px dashed var(--terra);border-radius:12px;padding:12px 14px}
-.holdbox li{margin:4px 0}
+.holdbox ul,.notes,.todo{margin:6px 0 0;padding-left:20px}
+.notes li,.todo li{margin:4px 0;font-size:13.5px}
+.cf .row{font-size:13.5px;padding:4px 0}
+details.out{background:var(--surface2);border-radius:12px;padding:10px 14px}
+details.out summary{cursor:pointer;font-weight:700}
 .mtop{display:grid;gap:4px;font-size:12.5px}
-.mtop div{display:grid;grid-template-columns:140px 1fr 50px;gap:8px;align-items:center}
+.mtop div{display:grid;grid-template-columns:150px 1fr 60px;gap:8px;align-items:center}
 .note{font-size:12px;color:var(--muted)}
-.help{background:var(--surface);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow);font-size:13.5px;color:var(--ink2);margin-top:14px}
-.help summary{cursor:pointer;font-weight:700;color:var(--ink)}
+.modebar{background:var(--amber-soft);border-radius:10px;padding:8px 12px;font-size:13px;margin-top:12px}
 footer{padding-block:10px 40px;font-size:12px;color:var(--muted)}
 @media (max-width:640px){
-  .factor{grid-template-columns:1fr}
-  .hero{grid-template-columns:1fr}
-  .ba{grid-template-columns:1fr}
-  .ba .arr{display:none}
+  .factor{grid-template-columns:minmax(0,1fr)}
+  .ba{grid-template-columns:1fr} .ba .arr{display:none}
   .count{margin-left:0;width:100%}
   h1{font-size:23px}
+  .mtop div{grid-template-columns:110px 1fr 54px}
 }
 </style>
 </head>
@@ -119,139 +130,160 @@ footer{padding-block:10px 40px;font-size:12px;color:var(--muted)}
 <div class="wrap">
 <header>
   <div class="eyebrow">H-UP 12기 · 팀 종민재</div>
-  <h1>부실 예측 설명 카드</h1>
-  <p class="lede">모델이 왜 이 기업을 위험하다고 봤는지를 문장·실측값·표본 내 위치로 보여줍니다. 카드는 내보내기 전에 검사를 거치고, 믿을 수 없는 설명은 보류합니다.</p>
-  <div class="banner" id="banner"></div>
-  <div class="stats" id="stats"></div>
-  <details class="help">
-    <summary>카드 읽는 법</summary>
-    <p><b>부실확률</b>은 보정된 모형 추정치입니다(인과 아님). <b>집단 내 순위</b>는 같은 집단(첫 부실 후보 / 부실 이력 있음) 안에서 위험이 높은 순서입니다.</p>
-    <p><b>표본 내 위치</b> 막대: 학습 구간 기업 분포에서 이 기업 값의 위치(0~100). 회색 선은 중앙값, 붉은 영역은 위험 쪽입니다.</p>
-    <p><b>상태</b> — 통과: 검사를 모두 통과 · 교정: 예전 방식이었다면 사실과 다른 단정 문장이 나갔을 카드(지금은 고친 문장) · 보류: 설명을 믿을 수 없어 요인 대신 이유를 냅니다.</p>
-    <p><b>무엇이 달라지면</b>: 그 항목이 표본 중앙값(또는 정상) 수준이면 모형 확률이 어떻게 바뀌는지입니다. 모형이 그렇게 반응한다는 뜻이지 인과 효과가 아닙니다.</p>
-  </details>
+  <h1>기업 위험 검토 도구</h1>
+  <p class="lede">위험을 예측하는 데서 끝내지 않고, <b>당시 공개된 정보로 판단했는지</b>, <b>설명이 재무 사실과 맞는지</b>, <b>사람이 근거를 확인할 수 있는지</b>까지 함께 보여줍니다.</p>
+  <div class="modebar" id="modebar" hidden></div>
+  <div class="can" id="can"></div>
+  <div class="links">비교용: <a href="v1/">1차 탐색 연구 화면</a> (최신 정정본 재무 · 이전 모델) · 투자 판단이나 신용평가가 아닙니다.</div>
 </header>
 
-<div class="controls wrap" role="toolbar" aria-label="필터">
+<h2 class="sec wrap" style="padding:0">시연 사례</h2>
+<div class="demo" id="demo"></div>
+
+<div class="controls" role="toolbar" aria-label="필터">
   <div class="seg" id="fGroup" aria-label="집단"></div>
-  <div class="seg" id="fStatus" aria-label="상태"></div>
+  <div class="seg" id="fStatus" aria-label="설명 상태"></div>
   <select id="fSector" aria-label="업종"></select>
-  <select id="fSort" aria-label="정렬">
-    <option value="prob">확률 높은 순</option>
-    <option value="id">사례 번호 순</option>
-  </select>
   <input type="search" id="fSearch" placeholder="사례 # 검색" aria-label="사례 번호 검색">
   <span class="count" id="count"></span>
 </div>
+<div class="groupnote" id="groupnote"></div>
 <main class="grid" id="grid" aria-live="polite"></main>
 <footer>
-  익명 사례입니다(기업명·종목코드 없음, 업종 대분류만). 투자 판단이나 신용평가가 아니며, DART 공개 공시만 사용했습니다.
-  재현: <code>PYTHONPATH=src .venv/bin/python scripts/site_data.py</code>
+  익명 사례입니다(기업명·종목코드 없음, 업종 대분류·공시 월만). DART 공개 공시만 사용했습니다.
+  재현: <code>HUP_VERSION=v2 PYTHONPATH=src .venv/bin/python scripts/site_data_v2.py</code>
 </footer>
 </div>
-
 <dialog id="dlg" aria-labelledby="dTitle"></dialog>
 
-<script src="data/cards_v1.js"></script>
+<script src="data/cards_v2.js"></script>
 <script>
-const D = window.HUP_DATA, C = D.cards;
+// 로컬 전용: 기업명·DART 원문 링크 (커밋하지 않는 파일). 없으면 익명판 그대로.
+document.write('<script src="data/local_names.js" onerror="void 0"><\/script>');
+</script>
+<script>
+const D = window.HUP_DATA, C = D.cards, M = D.meta, L = window.HUP_LOCAL || null;
+const P = new URLSearchParams(location.search), SCORE_ONLY = P.get("mode") === "score";
 const $ = s => document.querySelector(s);
-const pct = (p, d = 1) => (p * 100).toFixed(d) + "%";
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const state = { group: "전체", status: "전체", sector: "전체", sort: "prob", q: "" };
+const state = { group: "첫 부실 대상", status: "전체", sector: "전체", q: "" };
+const perf = M.성능;
 
-$("#banner").innerHTML = `<b>${esc(D.meta.원천)}</b> · ${esc(D.meta.구간)} · ${esc(D.meta.선정)} · 확률 보정 ${esc(D.meta.보정)}. 2차 연구(최초 공시 원본 재무)가 끝나면 이 화면을 갱신합니다.`;
+if (SCORE_ONLY) { $("#modebar").hidden = false; $("#modebar").textContent = "사용성 점검 모드 — 위험 순위와 원문만 보여줍니다 (설명 카드·재무비율·주의 표시 숨김)."; }
+$("#can").innerHTML = `
+  <div><b>할 수 있는 것</b>처음 부실해지는 기업의 위험 <b style="display:inline">순위</b>는 무작위보다 낫습니다 — 평가 구간 PR-AUC ${perf.첫부실_PR_AUC} (무작위의 ${perf.기준선배}배, 95% 구간 ${perf.CI[0].toFixed(3)}~${perf.CI[1].toFixed(3)}). 우선 검토할 기업을 고르는 보조 자료입니다.</div>
+  <div class="no"><b>할 수 없는 것</b>경보로 쓰기는 부족합니다 — 미리 정한 경보 기준으로 첫 부실 대상 ${(C.find(c => c.group === "첫 부실 대상")?.n_group || 0).toLocaleString()}곳 중 ${perf.경보["경보 수"]}곳만 경보했고 적중 ${perf.경보.적중}. 부실 확률은 이 집단에서 보정이 맞지 않아 표시하지 않습니다.</div>
+  <div><b>근거</b>${esc(M.데이터)} · ${esc(M.모델)} · ${esc(M.구간)}. 결과를 보기 전에 정한 절차로 한 번 평가했습니다.</div>`;
 
-const cnt = k => C.filter(c => c.status === k).length;
-$("#stats").innerHTML = [
-  [C.length, "카드"], [cnt("통과"), "검사 통과"], [cnt("교정"), "예전 방식이면 틀렸을 카드 (교정)"], [cnt("보류"), "설명 보류"],
-].map(([n, l]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+const demoInfo = { "통과": ["일반 설명", "검사를 모두 통과한 카드 — 어떤 재무 요인이 순위를 끌어올렸는가"],
+  "교정": ["오류 수정", "예전 방식이면 사실과 다른 문장이 나갔을 카드 — 무엇을 어떻게 고쳤는가"],
+  "보류": ["설명 보류", "설명을 믿을 수 없어 요인 대신 이유를 내는 카드 — 어디까지 믿을 것인가"] };
+$("#demo").innerHTML = Object.entries(M.demo).filter(([, id]) => id).map(([k, id]) => `
+  <button data-id="${id}"><div class="k chip ${k}" style="display:inline-block">${demoInfo[k][0]}</div>
+  <div class="t">사례 #${id}</div><div class="d">${demoInfo[k][1]}</div></button>`).join("");
+$("#demo").onclick = e => { const b = e.target.closest("button"); if (b) open(b.dataset.id); };
 
 function seg(el, key, opts) {
   el.innerHTML = opts.map(o => `<button type="button" data-v="${o}" aria-pressed="${state[key] === o}">${o}</button>`).join("");
   el.onclick = e => { const b = e.target.closest("button"); if (!b) return; state[key] = b.dataset.v;
     el.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); };
 }
-seg($("#fGroup"), "group", ["전체", "첫 부실 후보", "부실 이력 있음"]);
+seg($("#fGroup"), "group", ["첫 부실 대상", "부실 이력 있음"]);
 seg($("#fStatus"), "status", ["전체", "통과", "교정", "보류"]);
 const sectors = ["전체", ...[...new Set(C.map(c => c.sector))].sort((a, b) => a === "기타" ? 1 : b === "기타" ? -1 : a.localeCompare(b, "ko"))];
 $("#fSector").innerHTML = sectors.map(s => `<option>${s}</option>`).join("");
 $("#fSector").onchange = e => { state.sector = e.target.value; render(); };
-$("#fSort").onchange = e => { state.sort = e.target.value; render(); };
 $("#fSearch").oninput = e => { state.q = e.target.value.replace(/\D/g, ""); render(); };
+const groupNote = { "첫 부실 대상": "기준 시점까지 관측된 부실 이력이 없는 기업 — 조기 경보가 의미 있는 집단입니다 (주 분석).",
+  "부실 이력 있음": "이미 부실을 겪은 기업 — 과거 이력만으로도 상당 부분 맞혀지므로 따로 봅니다 (보조)." };
 
 function render() {
-  let xs = C.filter(c => (state.group === "전체" || c.group === state.group)
-    && (state.status === "전체" || c.status === state.status)
-    && (state.sector === "전체" || c.sector === state.sector)
-    && (!state.q || c.id.includes(state.q)));
-  xs.sort(state.sort === "prob" ? (a, b) => b.prob - a.prob : (a, b) => a.id.localeCompare(b.id));
-  $("#count").textContent = `${xs.length}장 표시`;
+  const xs = C.filter(c => c.group === state.group && (state.status === "전체" || c.status === state.status)
+    && (state.sector === "전체" || c.sector === state.sector) && (!state.q || c.id.includes(state.q)))
+    .sort((a, b) => a.rank - b.rank);
+  $("#groupnote").textContent = groupNote[state.group];
+  $("#count").textContent = `${xs.length}곳 표시 (집단 위험 상위 10%)`;
   $("#grid").innerHTML = xs.length ? xs.map(c => `
-    <button class="tile ${c.status === "보류" ? "hold" : ""}" data-id="${c.id}" aria-label="사례 ${c.id} 열기">
-      <div class="meta"><span>사례 #${c.id} · FY${c.fy} · ${esc(c.sector)}</span><span class="chip ${c.status}">${c.status}</span></div>
-      <div class="prob"><span class="v">${pct(c.prob)}</span><span class="r">${esc(c.group)} ${c.rank}위</span></div>
-      <div class="bar" aria-hidden="true"><i style="width:${Math.max(c.prob * 100, 1)}%"></i></div>
-      <div class="first">${c.status === "보류" ? "설명 보류 — " + esc(c.hold[0].split(" — ")[0]) : esc(c.up[0]?.text || "위험을 높인 안정 변수 없음")}</div>
-    </button>`).join("") : `<div class="empty">조건에 맞는 카드가 없습니다.</div>`;
+    <button class="tile ${!SCORE_ONLY && c.status === "보류" ? "hold" : ""}" data-id="${c.id}" aria-label="사례 ${c.id} 열기">
+      <div class="meta"><span>사례 #${c.id} · FY${c.fy} · ${esc(c.sector)}</span>${SCORE_ONLY ? "" : `<span class="chip ${c.status}">${c.status}</span>`}</div>
+      <div class="rank"><span class="v">${c.rank.toLocaleString()}위</span><span class="r">/ ${c.n_group.toLocaleString()}곳 · 상위 ${topPct(c)}</span></div>
+      <div class="meta"><span>공시 ${c.filed}</span>${L && L[c.id] ? `<span>${esc(L[c.id].name)}</span>` : ""}</div>
+      ${SCORE_ONLY ? "" : `<div class="first">${c.status === "보류" ? "설명 보류 — " + esc(c.hold[0].split(" — ")[0]) : esc(c.up[0]?.text || "")}</div>`}
+    </button>`).join("") : `<div class="empty">조건에 맞는 기업이 없습니다.</div>`;
 }
 $("#grid").onclick = e => { const t = e.target.closest(".tile"); if (t) open(t.dataset.id); };
 
-function posBar(f) {
-  if (f.pct == null) return "";
-  const risk = f.risky_high ? `left:50%;right:0` : `left:0;right:50%`;
-  const safe = (f.risky_high ? f.pct < 50 : f.pct > 50) ? "safe" : "";
-  return `<div class="pos ${safe}" role="img" aria-label="표본 내 위치 ${f.pct} (0~100, 중앙값 50)">
-      <span class="risk" style="${risk}"></span><span class="med" style="left:50%"></span><span class="dot" style="left:${f.pct}%"></span></div>
-    <div class="poslab"><span>낮음</span><span>중앙값 ${esc(f.median)}</span><span>높음</span></div>`;
+function posBar(pct, riskyHigh, median) {
+  if (pct == null) return `<span class="note">값 없음</span>`;
+  const risk = riskyHigh ? "left:50%;right:0" : "left:0;right:50%";
+  const safe = (riskyHigh ? pct < 50 : pct > 50) ? "safe" : "";
+  return `<div class="pos ${safe}" role="img" aria-label="표본 내 위치 ${pct} (0~100, 중앙값 50)"><span class="risk" style="${risk}"></span>
+    <span class="med" style="left:50%"></span><span class="dot" style="left:${pct}%"></span></div>
+    <div class="poslab"><span>낮음</span><span>중앙값 ${esc(median)}</span><span>높음</span></div>`;
 }
 function factorRow(f, max) {
-  const w = Math.round(Math.abs(f.shap) / max * 120);     // 가장 큰 기여 = 120px
-  return `<div class="factor">
-    <div><div class="s">${esc(f.text)}</div><div class="nv">${esc(f.var)}${f.value ? " · 실측 " + esc(f.value) : ""}</div>
-      <div class="contrib"><span class="b ${f.shap < 0 ? "neg" : ""}" style="width:${Math.max(w, 4)}px"></span>모형 기여 ${f.shap > 0 ? "+" : ""}${f.shap.toFixed(2)}</div></div>
-    <div>${posBar(f)}</div></div>`;
+  const w = Math.max(Math.round(Math.abs(f.shap) / max * 120), 4);
+  return `<div class="factor"><div><div class="s">${esc(f.text)}</div><div class="nv">${esc(f.var)}${f.value ? " · 공시 " + esc(f.value) : ""}</div>
+    <div class="contrib"><span class="b ${f.shap < 0 ? "neg" : ""}" style="width:${w}px"></span>위험 점수 기여 ${f.shap > 0 ? "+" : ""}${f.shap.toFixed(3)}</div></div>
+    <div>${posBar(f.pct, f.risky_high, f.median)}</div></div>`;
 }
+const topPct = c => c.rank_pct < 0.1 ? "0.1% 이내" : c.rank_pct + "%";
+const step = (n, title, body) => `<section class="step"><div class="n">${n}</div><div><h3>${title}</h3>${body}</div></section>`;
+
 function open(id) {
-  const c = C.find(x => x.id === id), dlg = $("#dlg");
-  const max = Math.max(...[...c.up, ...c.down, ...c.top_model].map(f => Math.abs(f.shap)), 0.01);
+  const c = C.find(x => x.id === id), dlg = $("#dlg"), loc = L && L[id];
+  const max = Math.max(...[...c.up, ...c.down, ...c.top_model].map(f => Math.abs(f.shap)), 1e-6);
   const holdNames = ["단위 의심", "핵심값 결측", "설명 불안정", "문장 방향 충돌"];
   const checks = holdNames.map(n => { const hit = c.hold.some(h => h.startsWith(n));
       return `<div class="ck ${hit ? "bad" : "ok"}"><span class="i">${hit ? "✕" : "✓"}</span><span>${n}${hit ? " — 걸림" : ""}</span></div>`; }).join("")
     + `<div class="ck ${c.fixed.length ? "fix" : "ok"}"><span class="i">${c.fixed.length ? "!" : "✓"}</span><span>사실 단정 ${c.fixed.length ? `— 문장 ${c.fixed.length}개 교정` : "— 이상 없음"}</span></div>`;
-  const cfMax = Math.max(...c.cf.map(r => r.from), 0.01);
-  dlg.innerHTML = `
-    <div class="dhead"><div class="t"><div class="meta"><span>FY${c.fy} · ${esc(c.sector)} · ${esc(c.group)}</span><span class="chip ${c.status}">${c.status}</span></div>
-      <h2 id="dTitle">사례 #${c.id}</h2></div><button class="x" aria-label="닫기">×</button></div>
-    <div class="dbody">
-      <div class="hero"><div class="v">${pct(c.prob)}</div>
-        <div><div class="sub">모형 추정 부실확률 (보정) · ${esc(c.group)} ${c.n_group.toLocaleString()}곳 중 위험 ${c.rank}위 (상위 ${c.rank_pct < 0.1 ? "0.1% 이내" : c.rank_pct + "%"})</div>
-          <div class="bar" style="margin-top:8px" aria-hidden="true"><i style="width:${Math.max(c.prob * 100, 1)}%"></i></div>
-          <button class="reveal" id="rev">실제 결과 보기</button><div class="outcome" id="out" hidden>${c.y ? "기준시점 후 400일 안에 부실 사건이 있었습니다" : "기준시점 후 400일 안에 부실 사건이 없었습니다"}</div></div></div>
-      ${c.wiped ? `<div class="banner">※ 자본총계가 음(-)입니다(완전 자본잠식). 부채비율·자기자본비율은 해석할 수 없어 제외했습니다.</div>` : ""}
-      ${c.status === "보류" ? `<section class="holdbox"><h3>설명 보류 — 이 기업의 요인 설명을 내지 않습니다</h3><ul>${c.hold.map(h => `<li>${esc(h)}</li>`).join("")}</ul></section>` : `
-      <section><h3>위험을 높인 요인</h3>${c.up.length ? c.up.map(f => factorRow(f, max)).join("") : `<p class="note">해당 없음</p>`}</section>
-      <section><h3>위험을 낮춘 요인</h3>${c.down.length ? c.down.map(f => factorRow(f, max)).join("") : `<p class="note">해당 없음 (안정 변수 중 위험을 낮춘 항목이 없습니다)</p>`}</section>`}
-      ${c.cf.length ? `<section><h3>무엇이 달라지면 <span class="note">(모형 기준 — 인과 효과가 아닙니다)</span></h3><p class="note" style="margin:-4px 0 8px"><span style="color:var(--terra)">●</span> 지금 확률 &nbsp; <span style="color:var(--navy)">●</span> 그 항목만 바뀌었을 때</p><div class="cf">${c.cf.map(r => `
-        <div class="cfrow"><div class="p">${esc(r.phrase)} <b>${pct(r.from)} → ${pct(r.to)}</b></div>
-          <div class="dumb" aria-hidden="true"><span class="ln" style="left:${r.to / cfMax * 100}%;width:${(r.from - r.to) / cfMax * 100}%"></span>
-          <span class="b" style="left:${r.to / cfMax * 100}%"></span><span class="a" style="left:${r.from / cfMax * 100}%"></span></div></div>`).join("")}</div></section>` : ""}
-      <section><h3>설명 검사</h3><div class="checks">${checks}</div>
-        ${c.fixed.map(f => `<div class="ba" style="margin-top:10px"><div class="o">${esc(f.old)}</div><div class="arr">→</div><div class="n">${esc(f.new)}</div></div>`).join("")}
-        ${c.fixed.length ? `<p class="note">왼쪽은 예전 방식(표본 중앙값 기준 판정)이 냈을 문장, 오른쪽은 실측값이 절대 기준을 넘지 않아 바꾼 현재 문장입니다.</p>` : ""}</section>
-      <section><h3>모델이 실제로 많이 본 변수 <span class="note">(카드에 오르지 않는 변수 포함)</span></h3><div class="mtop">${c.top_model.map(m => `
-        <div><span>${esc(m.var)}</span><span class="contrib"><span class="b ${m.shap < 0 ? "neg" : ""}" style="width:${Math.max(Math.round(Math.abs(m.shap) / max * 120), 4)}px"></span></span><span>${m.shap > 0 ? "+" : ""}${m.shap.toFixed(2)}</span></div>`).join("")}</div></section>
-      <p class="note">익명 사례 · 검증 구간 · 보정 확률은 두 집단을 합쳐 보정(집단별 보정 미확인) · 사람 검증 없음</p>
-    </div>`;
+  const src = loc ? `<div class="src"><a href="${esc(loc.url)}" target="_blank" rel="noopener">DART 원문 열기 — ${esc(loc.name)} FY${c.fy} 사업보고서 (최초 공시) ↗</a></div>`
+                  : `<div class="src note">공개판은 익명이라 원문 링크를 싣지 않습니다. 발표·점검용 로컬판에서는 여기서 DART 최초 공시 원문이 열립니다.</div>`;
+  let n = 0, body = "";
+  body += step(++n, "언제 알 수 있었던 정보로 판단했나", `<div class="when">
+      <div>공시 기준<b>${c.filed}</b>FY${c.fy} 사업보고서 최초 공시 · ${c.basis} 재무제표</div>
+      <div>예측 기간<b>${c.filed} ~ ${c.window_end}</b>공시 후 400일 안의 감사의견 비적정·회생절차 신청</div></div>
+      <p class="note">재무값은 그날 공개된 최초 공시 원본(XBRL)에서 읽었습니다. 나중의 정정 공시 값은 쓰지 않습니다.</p>`);
+  body += step(++n, "위험 순위", `<div class="hero"><span class="v">${c.rank.toLocaleString()}위</span>
+      <span class="sub">${esc(c.group)} ${c.n_group.toLocaleString()}곳 중 · 상위 ${topPct(c)}</span>${c.alert ? `<span class="alert">사전 경보 기준 초과</span>` : ""}</div>
+      <p class="note">부실 확률은 표시하지 않습니다 — 이 집단에서 확률 보정이 맞지 않았습니다. 순위는 같은 집단 안에서 위험 점수가 높은 순서입니다.</p>`);
+  if (!SCORE_ONLY) {
+    body += step(++n, "어떤 재무 요인이 위험 판단에 영향을 줬나", c.status === "보류"
+      ? `<div class="holdbox"><b>설명 보류 — 이 기업의 요인 설명을 내지 않습니다</b><ul>${c.hold.map(h => `<li>${esc(h)}</li>`).join("")}</ul></div>`
+      : `${c.wiped ? `<p class="note">※ 자본총계가 음(-)입니다(완전 자본잠식). 부채비율·자기자본비율은 해석할 수 없어 제외했습니다.</p>` : ""}
+         <div><b style="font-size:13px;color:var(--ink2)">위험을 높인 요인</b>${c.up.map(f => factorRow(f, max)).join("") || `<p class="note">해당 없음</p>`}</div>
+         <div style="margin-top:8px"><b style="font-size:13px;color:var(--ink2)">위험을 낮춘 요인</b>${c.down.map(f => factorRow(f, max)).join("") || `<p class="note">해당 없음 (안정 변수 중 위험을 낮춘 항목이 없습니다)</p>`}</div>
+         ${c.cf.length ? `<div class="cf" style="margin-top:10px"><b style="font-size:13px;color:var(--ink2)">무엇이 달라지면 (모델 기준 — 인과 효과가 아닙니다)</b>
+            ${c.cf.map(r => `<div class="row">${esc(r.phrase)} <b>${r.rank_from}위 → ${r.rank_to.toLocaleString()}위</b></div>`).join("")}</div>` : ""}`);
+    body += step(++n, "공시 재무비율 — 근거를 직접 확인", `<div class="tw"><table class="rt"><thead><tr><th>재무비율</th><th style="text-align:right">이 기업</th><th style="text-align:right">학습 표본 중앙값</th><th style="min-width:150px">표본 내 위치</th></tr></thead><tbody>
+      ${c.ratios.map(r => `<tr><td>${esc(r.var)}</td><td class="num">${esc(r.value) || "—"}</td><td class="num">${esc(r.median)}</td><td>${posBar(r.pct, r.risky_high, r.median)}</td></tr>`).join("")}
+      </tbody></table></div>${src}`);
+    body += step(++n, "어디까지 믿고, 무엇을 더 확인할까", `<div class="checks">${checks}</div>
+      ${c.fixed.map(f => `<div class="ba"><div class="o">${esc(f.old)}</div><div class="arr">→</div><div class="nw">${esc(f.new)}</div></div>`).join("")}
+      ${c.fixed.length ? `<p class="note">왼쪽은 예전 방식(표본 중앙값 기준 판정)이 냈을 문장, 오른쪽은 실측값이 절대 기준을 넘지 않아 바꾼 지금의 문장입니다.</p>` : ""}
+      ${c.notes.length ? `<div style="margin-top:10px"><b style="font-size:13px">데이터 주의</b><ul class="notes">${c.notes.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      <div style="margin-top:10px"><b style="font-size:13px">사업보고서에서 더 확인할 곳</b> <span class="note">(모델이 보지 않은 정보)</span><ul class="todo">${c.checks.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`);
+  } else {
+    body += step(++n, "원문", src);
+  }
+  const o = c.outcome;
+  const outTxt = !o.observed && !o.y ? "예측 기간이 사건 자료 수집일(2026-09-04) 뒤에 끝나 아직 관측이 끝나지 않았습니다."
+    : o.y ? `공시 후 약 ${o.months}개월 뒤 부실 사건(${esc(o.type)})이 있었습니다.` : "예측 기간(400일) 안에 부실 사건이 없었습니다.";
+  body += `<details class="out"><summary>이후 실제 사건 보기</summary><p style="margin:8px 0 0">${outTxt}</p>
+    <p class="note">순위가 높아도 사건이 없을 수 있고, 낮아도 있을 수 있습니다. 당시 예측과 결과를 비교해 보세요.</p></details>`;
+  if (!SCORE_ONLY) body += `<section><b style="font-size:13px;color:var(--ink2)">모델이 실제로 많이 본 변수</b> <span class="note">(카드에 오르지 않는 변수 포함)</span><div class="mtop" style="margin-top:6px">${c.top_model.map(m => `
+    <div><span>${esc(m.var)}</span><span class="contrib"><span class="b ${m.shap < 0 ? "neg" : ""}" style="width:${Math.max(Math.round(Math.abs(m.shap) / max * 120), 4)}px"></span></span><span>${m.shap > 0 ? "+" : ""}${m.shap.toFixed(3)}</span></div>`).join("")}</div></section>`;
+  dlg.innerHTML = `<div class="dhead"><div class="t"><div class="meta"><span>FY${c.fy} · ${esc(c.sector)} · ${esc(c.group)}</span>${SCORE_ONLY ? "" : `<span class="chip ${c.status}">${c.status}</span>`}</div>
+    <h2 id="dTitle">사례 #${c.id}${loc ? " · " + esc(loc.name) : ""}</h2></div><button class="x" aria-label="닫기">×</button></div><div class="dbody">${body}</div>`;
   dlg.querySelector(".x").onclick = () => dlg.close();
-  dlg.querySelector("#rev").onclick = e => { $("#out").hidden = false; e.target.hidden = true; };
   dlg.showModal();
-  history.replaceState(null, "", "#" + id);
+  history.replaceState(null, "", location.search + "#" + id);
 }
 $("#dlg").addEventListener("click", e => { if (e.target.id === "dlg") e.target.close(); });
-$("#dlg").addEventListener("close", () => history.replaceState(null, "", location.pathname));
+$("#dlg").addEventListener("close", () => history.replaceState(null, "", location.pathname + location.search));
 render();
-if (location.hash.length > 1 && C.some(c => c.id === location.hash.slice(1))) open(location.hash.slice(1));
+const h = location.hash.slice(1);
+if (h && C.some(c => c.id === h)) { state.group = C.find(c => c.id === h).group; seg($("#fGroup"), "group", ["첫 부실 대상", "부실 이력 있음"]); render(); open(h); }
 </script>
 </body>
 </html>

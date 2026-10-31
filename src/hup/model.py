@@ -192,8 +192,9 @@ def candidate(name, **p):
     if name == "랜덤포레스트":
         from sklearn.ensemble import RandomForestClassifier
         return Pipeline([("impute", SimpleImputer(strategy="median")),
-                         ("clf", RandomForestClassifier(n_estimators=500, max_features="sqrt", class_weight="balanced_subsample",
-                                                        n_jobs=-1, random_state=42, **p))])
+                         ("clf", RandomForestClassifier(**{"n_estimators": 500, "max_features": "sqrt",
+                                                           "class_weight": "balanced_subsample", "n_jobs": -1,
+                                                           "random_state": 42, **p}))])
     raise KeyError(name)
 
 
