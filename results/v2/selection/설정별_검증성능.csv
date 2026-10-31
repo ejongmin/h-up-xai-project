@@ -1,0 +1,61 @@
+﻿모델,번호,설정,상태,경고,경고_예,검증_첫부실_PR_AUC,검증_전체_PR_AUC,초
+로지스틱,0,"{""C"": 0.001, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07286,0.27794,0.1
+로지스틱,1,"{""C"": 0.003, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07793,0.28103,0.1
+로지스틱,2,"{""C"": 0.01, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07852,0.27266,0.1
+로지스틱,3,"{""C"": 0.03, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.08015,0.2678,0.1
+로지스틱,4,"{""C"": 0.1, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.0805,0.26497,0.1
+로지스틱,5,"{""C"": 0.3, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.08029,0.26268,0.1
+로지스틱,6,"{""C"": 1, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.08006,0.26208,0.2
+로지스틱,7,"{""C"": 3, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07989,0.26169,0.2
+로지스틱,8,"{""C"": 10, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07993,0.26144,0.2
+로지스틱,9,"{""C"": 30, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07995,0.26139,0.3
+로지스틱,10,"{""C"": 0.001, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07235,0.23977,0.1
+로지스틱,11,"{""C"": 0.003, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.0718,0.28043,0.1
+로지스틱,12,"{""C"": 0.01, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07312,0.27945,0.1
+로지스틱,13,"{""C"": 0.03, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07841,0.27579,0.1
+로지스틱,14,"{""C"": 0.1, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07967,0.26618,0.3
+로지스틱,15,"{""C"": 0.3, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.08023,0.26326,0.9
+로지스틱,16,"{""C"": 1, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.0799,0.26226,2.4
+로지스틱,17,"{""C"": 3, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07986,0.26166,6.0
+로지스틱,18,"{""C"": 10, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07995,0.26145,13.9
+로지스틱,19,"{""C"": 30, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07996,0.26138,20.6
+HistGB,0,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 50, ""l2_regularization"": 0.0}",성공,0,,0.10163,0.33756,1.4
+HistGB,1,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.11916,0.33711,1.5
+HistGB,2,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 50, ""l2_regularization"": 0.0}",성공,0,,0.11916,0.34796,1.6
+HistGB,3,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.10893,0.31897,1.7
+HistGB,4,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 100, ""l2_regularization"": 0.0}",성공,0,,0.11281,0.32744,1.7
+HistGB,5,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.09916,0.32891,1.4
+HistGB,6,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.09489,0.33616,1.4
+HistGB,7,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 100, ""l2_regularization"": 0.0}",성공,0,,0.10741,0.32923,1.5
+HistGB,8,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.11496,0.33259,1.4
+HistGB,9,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.10747,0.33431,1.5
+HistGB,10,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 50, ""l2_regularization"": 0.0}",성공,0,,0.11007,0.33302,1.4
+HistGB,11,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.10808,0.30366,1.5
+HistGB,12,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.10648,0.30652,1.6
+HistGB,13,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 50, ""l2_regularization"": 0.0}",성공,0,,0.10925,0.31674,1.6
+HistGB,14,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 100, ""l2_regularization"": 0.0}",성공,0,,0.11051,0.33367,1.6
+HistGB,15,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.08946,0.32031,1.4
+HistGB,16,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 50, ""l2_regularization"": 1.0}",성공,0,,0.10598,0.33257,1.4
+HistGB,17,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.09153,0.29747,1.8
+HistGB,18,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.0916,0.31451,2.0
+HistGB,19,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 100, ""l2_regularization"": 0.0}",성공,0,,0.11737,0.32978,1.7
+랜덤포레스트,0,"{""max_depth"": null, ""min_samples_leaf"": 1}",성공,0,,0.09465,0.21339,1.1
+랜덤포레스트,1,"{""max_depth"": null, ""min_samples_leaf"": 5}",성공,0,,0.10823,0.26838,0.9
+랜덤포레스트,2,"{""max_depth"": null, ""min_samples_leaf"": 20}",성공,0,,0.12145,0.31924,0.9
+랜덤포레스트,3,"{""max_depth"": null, ""min_samples_leaf"": 50}",성공,0,,0.12376,0.31415,0.9
+랜덤포레스트,4,"{""max_depth"": null, ""min_samples_leaf"": 100}",성공,0,,0.11861,0.29834,0.8
+랜덤포레스트,5,"{""max_depth"": 6, ""min_samples_leaf"": 1}",성공,0,,0.11666,0.24748,0.8
+랜덤포레스트,6,"{""max_depth"": 6, ""min_samples_leaf"": 5}",성공,0,,0.11517,0.25304,0.8
+랜덤포레스트,7,"{""max_depth"": 6, ""min_samples_leaf"": 20}",성공,0,,0.12594,0.29806,0.8
+랜덤포레스트,8,"{""max_depth"": 6, ""min_samples_leaf"": 50}",성공,0,,0.12297,0.31158,0.8
+랜덤포레스트,9,"{""max_depth"": 6, ""min_samples_leaf"": 100}",성공,0,,0.11969,0.30036,0.8
+랜덤포레스트,10,"{""max_depth"": 10, ""min_samples_leaf"": 1}",성공,0,,0.10529,0.2071,0.9
+랜덤포레스트,11,"{""max_depth"": 10, ""min_samples_leaf"": 5}",성공,0,,0.11027,0.24002,0.9
+랜덤포레스트,12,"{""max_depth"": 10, ""min_samples_leaf"": 20}",성공,0,,0.12089,0.31149,0.9
+랜덤포레스트,13,"{""max_depth"": 10, ""min_samples_leaf"": 50}",성공,0,,0.12376,0.31441,0.9
+랜덤포레스트,14,"{""max_depth"": 10, ""min_samples_leaf"": 100}",성공,0,,0.11881,0.29866,0.9
+랜덤포레스트,15,"{""max_depth"": 16, ""min_samples_leaf"": 1}",성공,0,,0.0947,0.18312,1.1
+랜덤포레스트,16,"{""max_depth"": 16, ""min_samples_leaf"": 5}",성공,0,,0.10593,0.25694,1.0
+랜덤포레스트,17,"{""max_depth"": 16, ""min_samples_leaf"": 20}",성공,0,,0.12126,0.31555,0.9
+랜덤포레스트,18,"{""max_depth"": 16, ""min_samples_leaf"": 50}",성공,0,,0.12376,0.31415,0.9
+랜덤포레스트,19,"{""max_depth"": 16, ""min_samples_leaf"": 100}",성공,0,,0.11861,0.29834,0.8
