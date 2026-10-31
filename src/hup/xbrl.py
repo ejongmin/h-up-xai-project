@@ -61,8 +61,38 @@ def _prefix(uri):
     if "iasb.org" in uri or "ifrs.org" in uri:
         return "ifrs-full"
     if "dart.fss.or.kr" in uri:
-        return "dart-gcd" if uri.rstrip("/").endswith("dart-gcd") else "dart"
+        tail = uri.rstrip("/").rsplit("/", 1)[-1]
+        if tail.startswith("entity"):            # 회사가 직접 만든 확장 계정 — 코드로는 못 찾고 이름(라벨)으로만 찾는다
+            return "ext"
+        return "dart-gcd" if tail == "dart-gcd" else "dart"
     return None
+
+
+def _labels(z):
+    """{계정 로컬명: 한글 표준 라벨}. API 의 account_nm 에 해당한다.
+
+    2026-10-31: 1차는 표준 코드가 없는 계정('-표준계정코드 미사용-')을 이름으로 찾았다(자본금·매출채권 등).
+    라벨 없이 코드로만 뽑으니 2차에서 자본잠식률 2,158행·매출채권회전율 1,369행이 새로 비었다.
+    """
+    out = {}
+    for n in z.namelist():
+        if not re.search(r"lab_[^/\\]*-ko", n):
+            continue
+        root = ET.fromstring(z.read(n))
+        loc, lab, arcs = {}, {}, []
+        for e in root.iter():
+            t = e.tag.split("}")[-1]
+            g = lambda a: e.get("{http://www.w3.org/1999/xlink}" + a)
+            if t == "loc":
+                loc[g("label")] = (g("href") or "").split("#")[-1]
+            elif t == "label" and (g("role") or "").endswith("/role/label"):
+                lab[g("label")] = (e.text or "").strip()
+            elif t == "labelArc":
+                arcs.append((g("from"), g("to")))
+        for f, to in arcs:
+            if f in loc and to in lab and "_" in loc[f]:
+                out.setdefault(loc[f].split("_", 1)[1], lab[to])
+    return out
 
 
 def _contexts(root):
@@ -105,6 +135,7 @@ def parse(blob, fy):
         return {}, {"오류": "xbrl 인스턴스 없음"}
     root = ET.fromstring(z.read(inst[0]))
     ctx = _contexts(root)
+    names = _labels(z)
     vals = {}   # (fs, kind, account_id) → {'thstrm_amount': v, 'frmtrm_amount': v}
     for el in root:
         ref = el.get("contextRef")
@@ -121,11 +152,11 @@ def parse(blob, fy):
         txt = (el.text or "").strip()
         if not re.fullmatch(r"-?\d+(\.\d+)?", txt):
             continue
-        vals.setdefault((fs, kind, f"{pre}_{name}"), {}).setdefault(col, txt)
+        vals.setdefault((fs, kind, f"{pre}_{name}", names.get(name, "")), {}).setdefault(col, txt)
     out = {}
-    for (fs, kind, aid), v in vals.items():
+    for (fs, kind, aid, nm), v in vals.items():
         for sj in (("BS",) if kind == "I" else ("IS", "CF")):
-            out.setdefault(fs, []).append({"sj_div": sj, "account_id": aid, "account_nm": "", **v})
+            out.setdefault(fs, []).append({"sj_div": sj, "account_id": aid, "account_nm": nm, **v})
     return out, {"인스턴스": inst[0], "기준": sorted(out)}
 
 

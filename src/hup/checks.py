@@ -85,7 +85,7 @@ def gate(df, ev, horizon=None):
         + [{"등급": "검토", "검사": "검토 대상 행 (학습·평가 제외)", "건수": int(df["검토필요"].sum())},
            {"등급": "검토", "검사": "그중 사건 행", "건수": int(df.loc[df["검토필요"] == 1, "y"].sum())},
            {"등급": "처리", "검사": "연결↔별도 기준 변경 → 변화량 결측", "건수": int(sw.sum())},
-           {"등급": "처리", "검사": "원본 XBRL 없음 → 패널 제외", "건수": len(NO_SOURCE)}])
+           {"등급": "처리", "검사": "원본 XBRL 없음 → 패널 제외 (1차에서 재무가 비어 빠졌던 행 포함)", "건수": len(NO_SOURCE)}])
     summary.to_csv(out / "검사요약.csv", index=False, encoding="utf-8-sig")
     print(summary.to_string(index=False))
     bad = {k: v for k, v in hard.items() if v}

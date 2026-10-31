@@ -53,6 +53,10 @@ def panel(corp_codes=None, years=None):
                 continue
             # 기준시점은 최초 접수일. 재무제표 응답의 rcept_no 는 정정본일 수 있다.
             dt = info.get("rcept_dt") or _rcept_dt(rows)
+            if config.FIN_SOURCE == "xbrl" and dt:
+                # 접수번호 날짜가 목록 접수일보다 늦은 경우가 있다(2026-10-31 실측 3건: 자정 넘김 1, 2025-08 재제출 2).
+                # 그 값은 접수번호 날짜에야 공개됐다 — T 를 둘 중 늦은 날로 둔다 (docs/15 §3)
+                dt = max(dt, rc[0][:8])
             if not dt:
                 continue
             a = features.extract(rows)
@@ -100,7 +104,13 @@ def build(horizon=None, include_secondary=False):
     패널과 사건 목록은 **한 번만** 만들고 창 길이만 바꿔 라벨을 다시 붙인다.
     창마다 처음부터 다시 만들면 캐시 2만여 건을 네 번 읽게 된다.
     """
-    kept, dropped = dataset.apply_exclusions(panel(), meta())
+    m = meta()
+    corps = None
+    if config.FIN_SOURCE == "xbrl":
+        # 제외 규칙은 전부 기업 단위다. 원본 XBRL 은 남을 기업 것만 받는다 (금융업 등의 호출을 아낀다)
+        stub = m[["corp_code"]].assign(bsns_year=0)
+        corps = dataset.apply_exclusions(stub, m)[0]["corp_code"].tolist()
+    kept, dropped = dataset.apply_exclusions(panel(corps), m)
     corps = kept["corp_code"].unique().tolist()
     ev = labels.build(corps, config.YEARS, "20150101", "20261231", include_secondary)
 

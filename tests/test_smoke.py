@@ -530,10 +530,16 @@ def test_xbrl_reads_first_filing_values():
            + '<ifrs-full:Equity contextRef="eqI" unitRef="KRW" decimals="0">999</ifrs-full:Equity>'
            + '<ifrs-full:Revenue contextRef="cD" unitRef="KRW" decimals="0">700</ifrs-full:Revenue>'
            + '<dart:OperatingIncomeLoss contextRef="qD" unitRef="KRW" decimals="0">-5</dart:OperatingIncomeLoss>'
+           + '<entity1:CapitalX xmlns:entity1="http://dart.fss.or.kr/taxonomy/2020-06-30/entity00000001" contextRef="cI" unitRef="KRW" decimals="0">800</entity1:CapitalX>'
            + '</xbrl>')
+    lab = ('<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:labelLink>'
+           '<link:loc xlink:href="e.xsd#entity00000001_CapitalX" xlink:label="L1"/>'
+           '<link:label xlink:label="T1" xlink:role="http://www.xbrl.org/2003/role/label" xml:lang="ko">자본금</link:label>'
+           '<link:labelArc xlink:from="L1" xlink:to="T1"/></link:labelLink></link:linkbase>')
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("x_2020.xbrl", doc)
+        z.writestr("labels/lab_x-ko_2020.xml", lab)
     by, _ = xbrl.parse(buf.getvalue(), 2020)
     rows, fs = xbrl.pick(by)
     assert fs == "CFS"
@@ -542,6 +548,7 @@ def test_xbrl_reads_first_filing_values():
     assert a["revenue"] == 700, "1년 기간 값"
     assert a["op_income"] is None, "분기 기간 값이 연간 값으로 들어오면 안 된다"
     assert a["equity"] is None, "자본 구성요소(세부 차원) 값이 자본총계로 들어오면 안 된다"
+    assert a["capital_stock"] == 800, "회사 확장 계정은 한글 라벨(자본금)로 찾는다"
 
 
 def test_gate_stops_on_timing_and_flags_units():

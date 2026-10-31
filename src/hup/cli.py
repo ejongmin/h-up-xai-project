@@ -129,7 +129,7 @@ def build():
     for h, (n, rate) in sens.items():
         mark = "  <- 주 분석" if h == config.HORIZON_DAYS else ""
         print(f"  {h}일 → 사건 {n:,}건 ({rate:.2%}){mark}")
-    print("\n저장: data/processed/dataset.csv (+ 민감도별 dataset_h*.csv)")
+    print(f"\n저장: {config.PROCESSED / 'dataset.csv'} (+ 민감도별 dataset_h*.csv)")
 
 
 def tables():
