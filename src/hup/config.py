@@ -14,6 +14,14 @@ MANUAL = DATA / "manual"      # KIND 등 손으로 받아온 표
 PROCESSED = DATA / "processed"
 RESULTS = ROOT / "results"
 
+# 연구 판 (docs/15). v1 = 1차 탐색 연구(최신 정정본 재무, 태그 v1-exploratory) — 결과를 덮어쓰지 않도록 그대로 둔다.
+# v2 = 최초 공시 원문(XBRL) 재무 + 데이터 검사 관문. 산출물 경로를 따로 쓴다.
+VERSION = os.environ.get("HUP_VERSION", "v1")
+FIN_SOURCE = "xbrl" if VERSION == "v2" else "api"
+if VERSION == "v2":
+    PROCESSED = DATA / "processed_v2"
+    RESULTS = ROOT / "results" / "v2"
+
 DART_KEY = os.environ.get("DART_API_KEY", "")
 
 REPRT_ANNUAL = "11011"        # 사업보고서 (반기 11012 / 1Q 11013 / 3Q 11014)

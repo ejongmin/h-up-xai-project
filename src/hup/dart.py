@@ -331,6 +331,25 @@ def universe(years=None):
     return out
 
 
+def first_filings(years=None):
+    """{(corp_code, 사업연도): (최초 접수번호, 최초 접수일)} — universe 와 같은 공시 목록(캐시)에서.
+
+    2차 연구(docs/15 §3)는 이 접수번호의 원본 XBRL 로 재무값을 다시 만든다.
+    같은 날 여러 건이면 접수번호가 작은 쪽(먼저 접수된 것).
+    """
+    years = list(years or config.YEARS)
+    out = {}
+    for y in range(years[0], years[-1] + 3):
+        for d in disclosures_all(f"{y}0101", f"{y}1231", pblntf_detail_ty="A001"):
+            m = _FY.search(d.get("report_nm", ""))
+            if not m or int(m.group(1)) not in years:
+                continue
+            k, v = (d["corp_code"], int(m.group(1))), (d["rcept_no"], d["rcept_dt"])
+            if k not in out or (v[1], v[0]) < (out[k][1], out[k][0]):
+                out[k] = v
+    return out
+
+
 _EXT = re.compile(r"사업보고서제출기한연장신고서\s*\((\d{4})\.(\d{2})\)")
 
 

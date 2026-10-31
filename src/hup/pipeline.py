@@ -5,7 +5,7 @@ parquet 대신 CSV를 쓴다. 관측치가 2~3만 건이라 속도 차이가 무
 import numpy as np
 import pandas as pd
 
-from . import config, dart, dataset, explain, features, labels, market, model
+from . import checks, config, dart, dataset, explain, features, labels, market, model, xbrl
 
 
 def uni_years(uni):
@@ -33,10 +33,22 @@ def panel(corp_codes=None, years=None):
     # 제출기한 연장신고는 그 사업연도 보고서보다 **먼저** 접수된다.
     # 따라서 기준시점 T 에 이미 공개돼 있다 — 시차 없이 그대로 쓸 수 있다.
     ext = dart.extension_filers(range(min(uni_years(uni)), max(uni_years(uni)) + 3))
+    first = dart.first_filings(years) if config.FIN_SOURCE == "xbrl" else {}
     out = []
     for cc in corps:
         for y, info in uni.get(cc, {}).items():
-            rows, fsdiv = dart.financials(cc, int(y))
+            if config.FIN_SOURCE == "xbrl":
+                # v2: 최초 접수번호의 원본 XBRL — T 에 실제로 공개된 값 (docs/15 §3)
+                rc = first.get((cc, int(y)))
+                blob = xbrl.fetch(rc[0]) if rc else None
+                if blob is None:
+                    out.append({"corp_code": cc, "bsns_year": int(y), "rcept_dt": info.get("rcept_dt"), "_원본없음": 1})
+                    continue
+                rows, fsdiv = xbrl.pick(xbrl.parse(blob, int(y))[0])
+                for r in rows:
+                    r["rcept_no"] = rc[0]
+            else:
+                rows, fsdiv = dart.financials(cc, int(y))
             if not rows:
                 continue
             # 기준시점은 최초 접수일. 재무제표 응답의 rcept_no 는 정정본일 수 있다.
@@ -59,6 +71,9 @@ def panel(corp_codes=None, years=None):
                      _data_rcept=max((r.get("rcept_no") or "")[:8] for r in rows))
             out.append(r)
     df = pd.DataFrame(out)
+    if "_원본없음" in df:       # 원본 XBRL 이 없는 행은 패널에서 빼고 검사 보고서에 수를 남긴다 (docs/15 §3-3)
+        checks.NO_SOURCE[:] = df.loc[df["_원본없음"] == 1, ["corp_code", "bsns_year"]].to_dict("records")
+        df = df[df["_원본없음"] != 1].drop(columns="_원본없음")
     df["rcept_dt"] = pd.to_datetime(df["rcept_dt"], format="%Y%m%d", errors="coerce")
     df["정정본재무"] = (pd.to_datetime(df["_data_rcept"], format="%Y%m%d", errors="coerce") > df["rcept_dt"]).astype(int)
     df, fixes = features.fix_units(df.dropna(subset=["rcept_dt"]))
@@ -91,6 +106,9 @@ def build(horizon=None, include_secondary=False):
 
     df = dataset.attach_labels(kept, ev, horizon)
     df = dataset.mark_prior_events(df, ev)
+    if config.VERSION == "v2":
+        df = checks.gate(df, ev, horizon)          # 검사를 통과해야 저장·학습된다 (docs/15 §4)
+    config.PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_csv(config.PROCESSED / "dataset.csv", index=False)
     dropped.to_csv(config.PROCESSED / "excluded.csv", index=False)
     ev.to_csv(config.PROCESSED / "events.csv", index=False)
@@ -119,6 +137,8 @@ def load(path=None):
 def _prepare(df, seed=42, horizon=None):
     """시점 분할 → 학습 구간에서만 정제 기준 산출. 모든 비교가 같은 분할을 쓴다.
     horizon: 그 데이터셋의 라벨 창(일). 엠바고가 창 길이를 따른다 (docs/13 §8-7)."""
+    if "검토필요" in df:     # v2: 검토 대상 행은 판정 전까지 학습·평가에서 뺀다 (docs/15 §4)
+        df = df[df["검토필요"] == 0]
     s = dataset.split(df, horizon_days=horizon)
     report = dataset.sanity(s, horizon)
     fin = [c for c in features.FEATURE_COLS if c in df.columns]

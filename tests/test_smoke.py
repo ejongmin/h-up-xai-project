@@ -501,6 +501,79 @@ def test_docs_numbers_match_results():
     assert not bad, "문서 수치가 결과 파일과 어긋난다:\n  " + "\n  ".join(bad)
 
 
+def test_xbrl_reads_first_filing_values():
+    """원본 XBRL → 당기·전기, 연결 우선, 분기·세부 차원 값 제외 (docs/15 §3)."""
+    import io
+    import zipfile
+    from hup import xbrl
+
+    def ctx(cid, period, member=None, extra=None):
+        dims = ""
+        if member:
+            dims += f'<xbrldi:explicitMember dimension="ifrs:ConsolidatedAndSeparateFinancialStatementsAxis">ifrs:{member}</xbrldi:explicitMember>'
+        if extra:
+            dims += f'<xbrldi:explicitMember dimension="ifrs:ComponentsOfEquityAxis">{extra}</xbrldi:explicitMember>'
+        sc = f"<scenario>{dims}</scenario>" if dims else ""
+        return f'<context id="{cid}"><entity><identifier scheme="x">1</identifier></entity><period>{period}</period>{sc}</context>'
+
+    I = lambda d: f"<instant>{d}</instant>"
+    D = lambda a, b: f"<startDate>{a}</startDate><endDate>{b}</endDate>"
+    doc = ('<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:xbrldi="http://xbrl.org/2006/xbrldi" '
+           'xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2020-03-16/ifrs-full" xmlns:dart="http://dart.fss.or.kr/taxonomy/2020-06-30/ifrs/dart">'
+           + ctx("cI", I("2020-12-31"), "ConsolidatedMember") + ctx("pI", I("2019-12-31"), "ConsolidatedMember")
+           + ctx("sI", I("2020-12-31"), "SeparateMember") + ctx("cD", D("2020-01-01", "2020-12-31"), "ConsolidatedMember")
+           + ctx("qD", D("2020-10-01", "2020-12-31"), "ConsolidatedMember")
+           + ctx("eqI", I("2020-12-31"), "ConsolidatedMember", "dart:CapitalSurplusMember")
+           + '<ifrs-full:Assets contextRef="cI" unitRef="KRW" decimals="0">5000</ifrs-full:Assets>'
+           + '<ifrs-full:Assets contextRef="pI" unitRef="KRW" decimals="0">4000</ifrs-full:Assets>'
+           + '<ifrs-full:Assets contextRef="sI" unitRef="KRW" decimals="0">3000</ifrs-full:Assets>'
+           + '<ifrs-full:Equity contextRef="eqI" unitRef="KRW" decimals="0">999</ifrs-full:Equity>'
+           + '<ifrs-full:Revenue contextRef="cD" unitRef="KRW" decimals="0">700</ifrs-full:Revenue>'
+           + '<dart:OperatingIncomeLoss contextRef="qD" unitRef="KRW" decimals="0">-5</dart:OperatingIncomeLoss>'
+           + '</xbrl>')
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("x_2020.xbrl", doc)
+    by, _ = xbrl.parse(buf.getvalue(), 2020)
+    rows, fs = xbrl.pick(by)
+    assert fs == "CFS"
+    a, p = features.extract(rows), features.extract(rows, "frmtrm_amount")
+    assert a["assets"] == 5000 and p["assets"] == 4000, "연결 당기·전기"
+    assert a["revenue"] == 700, "1년 기간 값"
+    assert a["op_income"] is None, "분기 기간 값이 연간 값으로 들어오면 안 된다"
+    assert a["equity"] is None, "자본 구성요소(세부 차원) 값이 자본총계로 들어오면 안 된다"
+
+
+def test_gate_stops_on_timing_and_flags_units():
+    """중단 위반은 멈추고, 단위 의심은 고치지 않고 검토 대상으로 뺀다 (docs/15 §4)."""
+    from hup import checks
+    T = pd.Timestamp("2021-03-20")
+    df = pd.DataFrame({"corp_code": ["A", "A", "B"], "bsns_year": [2019, 2020, 2020],
+                       "rcept_dt": [T - pd.Timedelta(365, "D"), T, T], "y": [0, 1, 0],
+                       "_data_rcept": ["20200320", "20210320", "20210320"],
+                       "_assets": [5e10, 5e7, 3e11], "_assets_prev": [np.nan, 5e10, 2.9e14],
+                       "재무제표기준": ["CFS", "OFS", "CFS"]})
+    ev = pd.DataFrame({"corp_code": ["A"], "event_date": [T + pd.Timedelta(100, "D")], "event_type": ["감사의견"]})
+    assert not any(checks.hard_failures(df, ev).values())
+    r = checks.review_flags(df)
+    assert "10억" in r[1] and r[0] == "", "자산 5천만 원은 검토 대상"
+    late = df.assign(_data_rcept=["20200320", "20210501", "20210320"])
+    assert checks.hard_failures(late, ev)["재무 공개일 > 기준시점 T"] == 1
+    assert checks.basis_switch(df).tolist() == [False, True, False]
+    dup = pd.concat([ev, ev])
+    import tempfile
+    from hup import config
+    keep, config.RESULTS = config.RESULTS, Path(tempfile.mkdtemp())    # 검사 보고서를 저장소에 쓰지 않게
+    try:
+        checks.gate(df, dup)
+    except checks.GateError:
+        pass
+    else:
+        raise AssertionError("사건 중복이면 멈춰야 한다")
+    finally:
+        config.RESULTS = keep
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
