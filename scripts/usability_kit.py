@@ -33,8 +33,14 @@ out.mkdir(parents=True, exist_ok=True)
 pd.DataFrame(rows).to_csv(out / "배정표.csv", index=False, encoding="utf-8-sig")
 cols = ["참가자", "블록", "조건", "사례", "과제1_시간(초)", "과제1_답(위험 요인 2개)", "과제1_정답수(0~2)",
         "과제2_시간(초)", "과제2_답(근거 수치)", "과제2_정답수(0~2)", "과제3_시간(초)", "과제3_답(추가 확인 항목)", "과제3_적절(0/1)",
-        "잘못 이해한 부분(관찰)", "이해 쉬움(1~5)", "근거 확인 쉬움(1~5)", "메모"]
+        "도움 요청(무엇을)", "잘못 이해한 부분(관찰)", "메모"]
 pd.DataFrame([{**r, **{c: "" for c in cols[4:]}} for r in rows])[cols].to_csv(out / "기록양식.csv", index=False, encoding="utf-8-sig")
+post = ["참가자", "오해1_순위가 높으면 반드시 부실(예/아니오)", "오해1_이유", "오해2_카드 요인이 부실 원인(예/아니오)", "오해2_이유",
+        "이해 쉬움_A(1~5)", "이해 쉬움_B(1~5)", "근거 확인 쉬움_A(1~5)", "근거 확인 쉬움_B(1~5)", "자유 의견"]
+pd.DataFrame([{c: (f"P{p:02d}" if c == "참가자" else "") for c in post} for p in range(1, n + 1)])[post].to_csv(
+    out / "사후문항.csv", index=False, encoding="utf-8-sig")
+pd.DataFrame([{"항목": k, "값": ""} for k in ("점검 날짜", "진행자", "화면 커밋 (git rev-parse --short HEAD)", "연습(P00) 진행 여부·고친 점")]).to_csv(
+    out / "점검정보.csv", index=False, encoding="utf-8-sig")
 key = []
 for c in pick:
     key.append({"사례": f"#{c['id']}", "기업": local[c["id"]]["name"], "원문": local[c["id"]]["url"], "FY": c["fy"], "업종": c["sector"],
