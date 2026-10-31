@@ -195,3 +195,30 @@ def candidate(name, **p):
                          ("clf", RandomForestClassifier(n_estimators=500, max_features="sqrt", class_weight="balanced_subsample",
                                                         n_jobs=-1, random_state=42, **p))])
     raise KeyError(name)
+
+
+def threshold_at_precision(y, p, target=0.30):
+    """정밀도 target 이상을 만족하는 가장 낮은 점수 경계 (동점 묶음 단위). 없으면 None.
+    검증 구간에서 정해 평가 구간에 그대로 적용한다 (docs/15 §6). recall_at_precision 과 같은 경계를 쓴다."""
+    p = np.asarray(p, dtype=float)
+    order = np.argsort(-p, kind="mergesort")
+    y, p = np.asarray(y)[order], p[order]
+    prec = np.cumsum(y) / np.arange(1, len(y) + 1)
+    last = np.r_[p[1:] != p[:-1], True]
+    ok = last & (prec >= target)
+    return float(p[ok].min()) if ok.any() else None
+
+
+def paired_ap_diff(y, p_a, p_b, groups, n_boot=1000, seed=0):
+    """PR-AUC(a) − PR-AUC(b) 의 기업 군집 쌍 부트스트랩 95% 구간 — 같은 관측치를 함께 뽑는다."""
+    y, p_a, p_b = np.asarray(y), np.asarray(p_a), np.asarray(p_b)
+    codes, inv = np.unique(np.asarray(groups), return_inverse=True)
+    members = [np.flatnonzero(inv == k) for k in range(len(codes))]
+    rng, d = np.random.default_rng(seed), []
+    for _ in range(n_boot):
+        i = np.concatenate([members[k] for k in rng.integers(0, len(codes), len(codes))])
+        if y[i].sum() == 0:
+            continue
+        d.append(average_precision_score(y[i], p_a[i]) - average_precision_score(y[i], p_b[i]))
+    return (float(average_precision_score(y, p_a) - average_precision_score(y, p_b)),
+            (float(np.percentile(d, 2.5)), float(np.percentile(d, 97.5))))

@@ -581,6 +581,17 @@ def test_gate_stops_on_timing_and_flags_units():
         config.RESULTS = keep
 
 
+def test_alert_threshold_is_lowest_score_meeting_precision():
+    """경보 임계값 = 정밀도 30% 이상인 가장 낮은 점수 경계, 동점 묶음 중간에서 끊지 않는다 (docs/15 §6)."""
+    y = np.array([1, 0, 1, 0, 0, 0, 0, 1, 0, 0])
+    p = np.array([.9, .8, .7, .6, .5, .4, .4, .3, .2, .1])
+    # 위에서부터 정밀도: 1, .5, .67, .5, .4, (0.4 묶음 끝) .286, .375, .333, .3
+    assert model.threshold_at_precision(y, p, 0.30) == 0.1, "전부 경보해도 정확히 30%"
+    assert model.threshold_at_precision(y, p, 0.35) == 0.3, "정밀도 35% 이상 중 가장 낮은 경계"
+    assert model.threshold_at_precision(y, p, 0.99) == 0.9
+    assert model.threshold_at_precision(np.zeros(5), np.arange(5.0), 0.3) is None
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

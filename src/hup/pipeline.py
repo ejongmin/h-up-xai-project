@@ -58,11 +58,11 @@ def panel(corp_codes=None, years=None):
             data_dt = max((r.get("rcept_no") or "")[:8] for r in rows)
             if config.FIN_SOURCE == "xbrl" and data_dt > dt:
                 # 접수번호 날짜가 목록 접수일보다 늦다 (2026-10-31 실측 3건, docs/15 §3-1). 두 경우를 가른다.
-                #  - 하루 차이: 같은 최초 공시가 자정을 넘겨 번호를 받은 것 → 최초 공개 자료로 확인, T 그대로
-                #  - 그 이상: 몇 달 뒤 다시 등록된 파일 → 최초 공개 시점의 값인지 확인할 수 없다. 주 분석에서 빼고 따로 남긴다
+                #  - 원문으로 최초 공개 자료임을 확인한 사례(config.FIRST_FILING_CONFIRMED) → T 그대로
+                #  - 그 밖: 최초 공개 시점의 값인지 확인할 수 없다. 주 분석에서 빼고 따로 남긴다
                 #    (T 를 늦추면 '최초 공시 시점의 예측'과 다른 문제가 된다)
-                gap = (pd.Timestamp(data_dt) - pd.Timestamp(dt)).days
-                if gap <= 1:
+                # 자정 넘김 예외는 원문을 확인한 사례에만 적용한다 — 하루 차이를 자동으로 허용하지 않는다 (docs/15 §3-1)
+                if (cc, int(y), rc[0]) in config.FIRST_FILING_CONFIRMED:
                     data_dt = dt
                 else:
                     checks.TIME_UNCONFIRMED.append({"corp_code": cc, "bsns_year": int(y), "목록접수일": dt, "접수번호": rc[0]})
