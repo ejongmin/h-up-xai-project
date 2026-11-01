@@ -18,6 +18,6 @@ data/processed_*/
 # 작업 도구 상태 · PowerPoint 잠금 파일
 .omc/
 ~$*
-results/v2/data_check/검토대상.csv
+results/*/data_check/검토대상.csv
 site/data/local_names.js
 data/usability/
