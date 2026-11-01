@@ -2,6 +2,7 @@
 # 실행: HUP_VERSION=v2 PYTHONPATH=src .venv/bin/python scripts/v2_analysis.py → results/v2/analysis/
 import importlib.util
 import json
+import re
 import sys
 
 import joblib
@@ -119,7 +120,8 @@ for cc, y in keys:
     ao = labels.current_period(dart.audit_opinion(cc, int(y))) or {}
     emph = (ao.get("emphs_matter") or "").replace("\n", " ")
     blob = f"{emph} {(ao.get('adt_reprt_spcmnt_matter') or '')}"
-    aud = (ao.get("adtor") or "").strip()
+    # 감사인 이름 표기 차이(공백·'회계법인'·'(주)'·'유한')를 지우고 비교한다 (v2.2 — 정상군 27.7%가 교체로 잡혔다)
+    aud = re.sub(r"\s|회계법인|\(주\)|주식회사|유한|\(유\)", "", ao.get("adtor") or "")
     chg = float(bool(aud) and cc in prev_aud and prev_aud[cc] != aud)
     if aud:
         prev_aud[cc] = aud

@@ -189,7 +189,7 @@ function render() {
   $("#count").textContent = `${xs.length}장 표시`;
   $("#grid").innerHTML = xs.length ? xs.map(c => `
     <button class="tile ${c.status === "보류" ? "hold" : ""}" data-id="${c.id}" aria-label="사례 ${c.id} 열기">
-      <div class="meta"><span>사례 #${c.id} · FY${c.fy} · ${esc(c.sector)}</span><span class="chip ${c.status}">${c.status}</span></div>
+      <div class="meta"><span>1차 사례 #${c.id} · FY${c.fy} · ${esc(c.sector)}</span><span class="chip ${c.status}">${c.status}</span></div>
       <div class="prob"><span class="v">${pct(c.prob)}</span><span class="r">${esc(c.group)} ${c.rank}위</span></div>
       <div class="bar" aria-hidden="true"><i style="width:${Math.max(c.prob * 100, 1)}%"></i></div>
       <div class="first">${c.status === "보류" ? "설명 보류 — " + esc(c.hold[0].split(" — ")[0]) : esc(c.up[0]?.text || "위험을 높인 안정 변수 없음")}</div>
@@ -222,7 +222,7 @@ function open(id) {
   const cfMax = Math.max(...c.cf.map(r => r.from), 0.01);
   dlg.innerHTML = `
     <div class="dhead"><div class="t"><div class="meta"><span>FY${c.fy} · ${esc(c.sector)} · ${esc(c.group)}</span><span class="chip ${c.status}">${c.status}</span></div>
-      <h2 id="dTitle">사례 #${c.id}</h2></div><button class="x" aria-label="닫기">×</button></div>
+      <h2 id="dTitle">1차 사례 #${c.id}</h2></div><button class="x" aria-label="닫기">×</button></div>
     <div class="dbody">
       <div class="hero"><div class="v">${pct(c.prob)}</div>
         <div><div class="sub">모형 추정 부실확률 (보정) · ${esc(c.group)} ${c.n_group.toLocaleString()}곳 중 위험 ${c.rank}위 (상위 ${c.rank_pct < 0.1 ? "0.1% 이내" : c.rank_pct + "%"})</div>

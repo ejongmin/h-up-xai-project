@@ -106,7 +106,9 @@ def select():
     m, p = preds[(chosen, best[chosen])]
     thr = model.threshold_at_precision(yv, p[first], 0.30)
     cfg = model.GRIDS[chosen][best[chosen]]
-    cal = model.calibrated(lambda: model.candidate(chosen, **cfg), "isotonic").fit(tr[use], tr["y"])
+    from sklearn.model_selection import GroupKFold      # v2.2: 보정 교차검증을 기업 단위로 (같은 기업이 학습·보정 접힘에 나뉘지 않게)
+    folds = list(GroupKFold(n_splits=5).split(tr[use], tr["y"], tr["corp_code"]))
+    cal = model.calibrated(lambda: model.candidate(chosen, **cfg), "isotonic", cv=folds).fit(tr[use], tr["y"])
     joblib.dump({"model": m, "calibrated": cal, "use": use, "chosen": chosen, "config": cfg}, MODEL_FILE)
 
     OUT.mkdir(parents=True, exist_ok=True)

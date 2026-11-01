@@ -58,7 +58,11 @@ def opinion_coverage(corp_codes, years):
     return pd.DataFrame(rows)
 
 
-def audit_events(corp_codes, years, first_dt=None):
+AUDIT_SOURCE = {"원문으로 판정": 0, "정정본과 판정이 다른 행": 0, "원문 판독 불가 — API 의견 사용": 0}
+AUDIT_SOURCE_DIFF = []
+
+
+def audit_events(corp_codes, years, first_dt=None, first_no=None):
     """감사의견 비적정 사건. 반환: corp_code, event_date, event_type, detail
 
     사건일 = **그 사업연도 사업보고서의 최초 접수일**(first_dt[(corp, FY)]) — 감사보고서가 공개되는 시점.
@@ -73,6 +77,19 @@ def audit_events(corp_codes, years, first_dt=None):
             if not r:
                 continue
             op = (r.get("adt_opinion") or "").replace(" ", "")
+            # v2.2 (docs/15 §11): API 의견이 정정본의 것이면 최초 공시 원문에 첨부된 감사보고서의 의견을 쓴다
+            fno = (first_no or {}).get((cc, int(y)))
+            if fno and r.get("rcept_no") != fno:
+                orig = [x["opinion"] for x in dart.audit_opinion_original(fno)["reports"] if x["opinion"] != "불명"]
+                if orig:
+                    new = "+".join(orig) + "(원문)"
+                    AUDIT_SOURCE["원문으로 판정"] += 1
+                    if (classify_opinion(op) == "비적정") != any(o in ("의견거절", "부적정", "한정") for o in orig):
+                        AUDIT_SOURCE["정정본과 판정이 다른 행"] += 1
+                        AUDIT_SOURCE_DIFF.append({"corp_code": cc, "bsns_year": int(y), "정정본(API)": op, "최초 공시 원문": new})
+                    op = new if any(o in ("의견거절", "부적정", "한정") for o in orig) else "적정(원문)"
+                else:
+                    AUDIT_SOURCE["원문 판독 불가 — API 의견 사용"] += 1
             if classify_opinion(op) == "비적정":
                 rows.append({
                     "corp_code": cc, "bsns_year": int(y),
@@ -243,7 +260,10 @@ def dedupe_rehab(ev, days=365):
 
 
 def build(corp_codes, years, bgn_de, end_de, include_secondary=False):
-    au = audit_events(corp_codes, years, first_filing_dates(years))
+    first_no = {k: v[0] for k, v in dart.first_filings(years).items()} if config.FIN_SOURCE == "xbrl" else None
+    au = audit_events(corp_codes, years, first_filing_dates(years), first_no)
+    if first_no:
+        print(f"  감사의견 출처: {AUDIT_SOURCE}")
     if len(au):
         print(f"  감사의견 사건 {len(au)}건 중 최초 접수일을 몰라 응답 날짜를 쓴 것 {int(au['_fallback'].sum())}건")
         au = au.drop(columns="_fallback")

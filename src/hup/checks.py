@@ -13,6 +13,7 @@ import pandas as pd
 from . import config
 
 NO_SOURCE = []          # 원본 XBRL 이 없어 패널에서 빠진 행 (pipeline.panel 이 채운다)
+NON_DEC = []           # 그 사업연도 최초 보고서가 12월 결산이 아닌 행 — 패널 제외 (v2.2)
 TIME_UNCONFIRMED = []   # 접수번호 날짜가 목록 접수일보다 늦고 원문 확인 목록에 없어 최초 공개 자료인지 확인할 수 없는 행 — 주 분석 제외
 
 
@@ -89,13 +90,26 @@ def gate(df, ev, horizon=None):
     out.mkdir(parents=True, exist_ok=True)
     cols = ["corp_code", "bsns_year", "rcept_dt", "재무제표기준", "_assets", "_assets_prev", "y", "검토사유"]
     df.loc[df["검토사유"] != "", [c for c in cols if c in df]].to_csv(out / "검토대상.csv", index=False, encoding="utf-8-sig")
+    # v2.2: 변수별 결측률을 공시 연도별로 — 학습 구간 연도들의 중앙값보다 3배 넘고 3%p 넘게 튀는 (변수, 연도)는 경고 (멈추지는 않는다)
+    yr = df["rcept_dt"].dt.year
+    cols = [c for c in features.FEATURE_COLS if c in df and not c.startswith("Δ") and not c.endswith("증가율")]
+    miss = df[cols].isna().groupby(yr).mean()
+    base = miss.loc[(miss.index >= config.SPLIT["train"][0]) & (miss.index <= config.SPLIT["train"][1])].median()
+    jump = [(c, int(y_), round(float(miss.at[y_, c]), 4), round(float(base[c]), 4)) for y_ in miss.index for c in cols
+            if miss.at[y_, c] > 3 * base[c] and miss.at[y_, c] - base[c] > 0.03]
+    miss.round(4).to_csv(out / "연도별_결측률.csv", encoding="utf-8-sig")
+    pd.DataFrame(jump, columns=["변수", "공시연도", "결측률", "학습구간 중앙값"]).to_csv(out / "연도별_결측_경고.csv", index=False, encoding="utf-8-sig")
     summary = pd.DataFrame(
         [{"등급": "중단", "검사": k, "건수": v} for k, v in hard.items()]
         + [{"등급": "검토", "검사": "검토 대상 행 (학습·평가 제외)", "건수": int(df["검토필요"].sum())},
            {"등급": "검토", "검사": "그중 사건 행", "건수": int(df.loc[df["검토필요"] == 1, "y"].sum())},
            {"등급": "처리", "검사": "연결↔별도 기준 변경 → 변화량 결측", "건수": int(sw.sum())},
            {"등급": "처리", "검사": "원본 XBRL 없음 → 패널 제외 (1차에서 재무가 비어 빠졌던 행 포함)", "건수": len(NO_SOURCE)},
-           {"등급": "처리", "검사": "최초 공개 자료 확인 불가(재등록 파일) → 주 분석 제외", "건수": len(TIME_UNCONFIRMED)}])
+           {"등급": "처리", "검사": "최초 공개 자료 확인 불가(재등록 파일) → 주 분석 제외", "건수": len(TIME_UNCONFIRMED)},
+           {"등급": "처리", "검사": "최초 보고서가 12월 결산이 아님 → 패널 제외", "건수": len(NON_DEC)},
+           {"등급": "경고", "검사": "연도별 결측 급증 (변수·공시연도 쌍, 연도별_결측_경고.csv)", "건수": len(jump)}]
+          + [{"등급": "라벨", "검사": f"감사의견 {k}", "건수": v} for k, v in _audit_source().items()])
+    pd.DataFrame(NON_DEC).to_csv(out / "비12월_제외.csv", index=False, encoding="utf-8-sig")
     pd.DataFrame(TIME_UNCONFIRMED).to_csv(out / "시점확인불가.csv", index=False, encoding="utf-8-sig")
     summary.to_csv(out / "검사요약.csv", index=False, encoding="utf-8-sig")
     print(summary.to_string(index=False))
@@ -103,6 +117,13 @@ def gate(df, ev, horizon=None):
     if bad:
         raise GateError(f"데이터 검사 중단 위반: {bad} — {out / '검사요약.csv'}")
     return df
+
+
+def _audit_source():
+    from . import labels
+    if labels.AUDIT_SOURCE_DIFF:
+        pd.DataFrame(labels.AUDIT_SOURCE_DIFF).to_csv(config.RESULTS / "data_check" / "감사의견_정정본과다른행.csv", index=False, encoding="utf-8-sig")
+    return labels.AUDIT_SOURCE if sum(labels.AUDIT_SOURCE.values()) else {}
 
 
 def _manual_keep():

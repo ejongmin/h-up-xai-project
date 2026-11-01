@@ -368,7 +368,7 @@ def card(row, sv, cols, allow=None, top_k=4, prob=None, ref=None, cf=None, hold=
         s = s[[c for c in s.index if c not in EQUITY_BASED]]
 
     up = s[s > 0].sort_values(ascending=False).head(top_k)
-    down = s[s < 0].sort_values().head(2)
+    down = s[s < -1e-3].sort_values().head(2)      # 기여가 0 에 가까운 항목은 '낮춘 요인'으로 싣지 않는다 (사이트·재분석과 같은 기준)
     out = [f"모형 추정 부실확률 {prob:.1%}"] if prob is not None else []
     if wiped:
         out.append("※ 자본총계가 음(-)입니다(완전 자본잠식). "

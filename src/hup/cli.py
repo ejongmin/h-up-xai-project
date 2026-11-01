@@ -120,6 +120,12 @@ def dryrun():
 
 def build():
     from . import pipeline
+    if config.VERSION.startswith("v2") and config.VERSION not in ("v2", "v2.1"):
+        import subprocess
+        dirty = subprocess.run(["git", "status", "--porcelain", "--", "src", "scripts", "docs", "tests"], cwd=config.ROOT,
+                               capture_output=True, text=True).stdout.strip()
+        if dirty:      # v2.2 (docs/15 §11): 데이터셋도 커밋된 코드로만 만든다
+            sys.exit("작업 트리가 깨끗하지 않다 — 커밋한 뒤 build 할 것")
     df, sens, dropped, ev = pipeline.build()
     print(f"주 분석 창 {config.HORIZON_DAYS}일")
     print(f"관측치 {len(df):,}건 / 사건 {int(df['y'].sum()):,}건 ({df['y'].mean():.2%})")

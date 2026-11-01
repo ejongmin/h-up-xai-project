@@ -8,6 +8,8 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
+import os
+VER = os.environ.get("HUP_VERSION", "v2.2").replace(".", "_")     # 사이트 데이터를 만든 판과 같게
 n = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 load = lambda f, k: json.loads((ROOT / "site" / "data" / f).read_text().split("=", 1)[1].rstrip(";\n").replace("NaN", "null"))
 cards, local = load("cards_v2.js", "HUP_DATA")["cards"], load("local_names.js", "HUP_LOCAL")
@@ -34,7 +36,7 @@ for p in range(1, n + 1):
     for order, (cases, cond) in enumerate(((s1, c1), (s2, c2)), 1):
         for k in cases:
             rows.append({"참가자": f"P{p:02d}", "블록": order, "조건": cond, "사례": f"#{pick[k]['id']}"})
-out = ROOT / "results" / "v2_1" / "usability"
+out = ROOT / "results" / VER / "usability"
 out.mkdir(parents=True, exist_ok=True)
 pd.DataFrame(rows).to_csv(out / "배정표.csv", index=False, encoding="utf-8-sig")
 cols = ["참가자", "블록", "조건", "사례", "과제1_시간(초)", "과제1_답(위험 요인 2개)", "과제1_정답수(0~2)",
@@ -47,7 +49,7 @@ pd.DataFrame([{c: (f"P{p:02d}" if c == "참가자" else "") for c in post} for p
     out / "사후문항.csv", index=False, encoding="utf-8-sig")
 pd.DataFrame([{"항목": k, "값": ""} for k in ("점검 날짜", "진행자", "화면 커밋 (git rev-parse --short HEAD)", "연습(P00) 진행 여부·고친 점")]).to_csv(
     out / "점검정보.csv", index=False, encoding="utf-8-sig")
-raw = pd.read_csv(ROOT / "data" / "processed_v2_1" / "dataset.csv", dtype={"corp_code": str},
+raw = pd.read_csv(ROOT / "data" / f"processed_{VER}" / "dataset.csv", dtype={"corp_code": str},
                   usecols=["corp_code", "bsns_year", "_assets", "_revenue"]).set_index(["corp_code", "bsns_year"])
 key = []
 for c in pick:

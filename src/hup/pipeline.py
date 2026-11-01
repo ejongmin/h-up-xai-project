@@ -38,6 +38,10 @@ def panel(corp_codes=None, years=None):
     for cc in corps:
         for y, info in uni.get(cc, {}).items():
             if config.FIN_SOURCE == "xbrl":
+                # v2.2: 그 사업연도 최초 보고서가 12월 결산이 아니면(결산월 변경 기업) 기간이 달라 비교되지 않는다 — 뺀다 (docs/15 §11)
+                if config.VERSION != "v2" and config.VERSION != "v2.1" and int(info.get("fy_month") or 12) != 12:
+                    checks.NON_DEC.append({"corp_code": cc, "bsns_year": int(y), "결산월": info.get("fy_month")})
+                    continue
                 # v2: 최초 접수번호의 원본 XBRL — T 에 실제로 공개된 값 (docs/15 §3)
                 rc = first.get((cc, int(y)))
                 blob = xbrl.fetch(rc[0]) if rc else None

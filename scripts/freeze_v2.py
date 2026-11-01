@@ -60,7 +60,20 @@ by["누적 행"] = by["행"].cumsum()
 by.to_csv(OUT / "독립평가_관측완료월.csv", index=False, encoding="utf-8-sig")
 
 files = ["src/hup/" + f for f in ("config.py", "dart.py", "xbrl.py", "checks.py", "labels.py", "features.py", "dataset.py",
-                                  "pipeline.py", "model.py", "explain.py")] + ["scripts/v2_experiment.py", "docs/15_2차연구_계획_사전고정.md"]
+                                  "pipeline.py", "model.py", "explain.py", "market.py")] + \
+        ["scripts/" + f for f in ("v2_experiment.py", "freeze_v2.py", "v2_corrected_eval.py", "v2_analysis.py")] + ["docs/15_2차연구_계획_사전고정.md"]
+# v2.2: 명세가 고정하는 범위를 넓힌다 — 사건 목록 · 창 민감도 데이터 · 사람 판정 파일 (docs/15 §11)
+data_files = {n: sha(config.PROCESSED / n) for n in ("events.csv", "dataset_h365.csv", "dataset_h450.csv") if (config.PROCESSED / n).exists()}
+if (config.MANUAL / "검토판정_v2.csv").exists():
+    data_files["data/manual/검토판정_v2.csv"] = sha(config.MANUAL / "검토판정_v2.csv")
+# 선택 시점 모델과 동결본의 예측 차이 (검증 · 평가 구간) — 동결이 모델을 바꾸지 않았다는 근거
+b0 = joblib.load(config.PROCESSED / "v2_final_model.joblib")
+thr0 = sel["경보 임계값 (검증 첫 부실, 정밀도 30% 이상인 가장 낮은 점수)"]
+same = {}
+for part in ("valid", "test"):
+    X_ = clean[part][b["use"]]
+    p0, p1 = b0["model"].predict_proba(X_)[:, 1], b2["model"].predict_proba(X_)[:, 1]
+    same[part] = {"최대 차이": float(np.abs(p0 - p1).max()), "임계값을 넘나든 행": int(((p0 >= thr0) != (p1 >= thr0)).sum())}
 spec = {
     "동결": git("log", "-1", "--format=%cs"), "커밋": git("rev-parse", "HEAD"),
     "성격": "2차 최종 모델·평가 절차. 독립 평가는 이 명세의 파일과 규칙으로만 한다 (docs/15 §6).",
@@ -84,6 +97,8 @@ spec = {
                 "가장 이른 완료": str(ind["관측완료일"].min().date()), "가장 늦은 완료": str(ind["관측완료일"].max().date()),
                 "평가 시점 규칙": "평가일 기준 관측 완료된 행만 포함하고, 사건 목록을 그 완료일 이후에 다시 수집한 뒤 평가한다. 미완료 행은 수를 보고하고 제외한다."},
     "코드 파일 sha256": {f: sha(ROOT / f) for f in files},
+    "데이터 파일 sha256": data_files,
+    "선택 시점 모델과 예측 비교": same,
     "선택 결과": {"파일": f"{config.RESULTS.relative_to(ROOT).as_posix()}/selection/선택결과.json", "sha256": sha(config.RESULTS / "selection" / "선택결과.json")},
     "수정 후 재평가": {"파일": f"{config.RESULTS.relative_to(ROOT).as_posix()}/final/평가결과.json", "sha256": sha(config.RESULTS / "final" / "평가결과.json")},
 }

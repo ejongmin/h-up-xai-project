@@ -616,6 +616,21 @@ def test_alert_threshold_is_lowest_score_meeting_precision():
     assert model.threshold_at_precision(np.zeros(5), np.arange(5.0), 0.3) is None
 
 
+def test_original_audit_report_opinion():
+    """최초 공시 원문의 감사보고서 의견 판정 — 검증에서 잡은 오판을 다시 내지 않는다 (docs/15 §11)."""
+    from hup import dart
+    clean = "독립된 감사인의 감사보고서 감사의견 우리의 의견으로는 공정하게 표시하고 있습니다. 감사의견근거 우리는 ..."
+    assert dart.classify_audit_report(clean) == "적정"
+    ic = clean + " 우리는 내부회계관리제도를 감사하였으며 감사보고서에서 부적정의견을 표명하였습니다."
+    assert dart.classify_audit_report(ic) == "적정", "내부회계관리제도 부적정의견 언급을 재무제표 의견으로 읽으면 안 된다"
+    disc = "감사보고서 우리는 별첨된 회사의 재무제표에 대하여 의견을 표명하지 않습니다. 의견거절근거 1. 감사범위 제한 ..."
+    assert dart.classify_audit_report(disc) == "의견거절", "제목 없이 시작하는 의견거절"
+    qual = "감사보고서 한정의견 우리의 의견으로는 ... 을 제외하고는 공정하게 표시하고 있습니다. 한정의견근거 ..."
+    assert dart.classify_audit_report(qual) == "한정"
+    old = "감사보고서 감사의견 ... 전기 재무제표에 대하여는 의견거절을 표명하였습니다. 우리의 의견으로는 공정하게 표시하고 있습니다."
+    assert dart.classify_audit_report(old) == "적정", "전기 재무제표에 대한 의견 언급을 당기 의견으로 읽으면 안 된다"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
