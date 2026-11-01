@@ -1,0 +1,61 @@
+﻿모델,번호,설정,상태,경고,경고_예,검증_첫부실_PR_AUC,검증_첫부실_PR_AUC_원값,검증_전체_PR_AUC,초
+로지스틱,0,"{""C"": 0.001, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07238,0.07238087964831742,0.27046,0.1
+로지스틱,1,"{""C"": 0.003, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07706,0.0770613971015532,0.27379,0.1
+로지스틱,2,"{""C"": 0.01, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07765,0.07764997374292927,0.26543,0.1
+로지스틱,3,"{""C"": 0.03, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07864,0.07864454007525633,0.26144,0.1
+로지스틱,4,"{""C"": 0.1, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07869,0.07868592125951328,0.25902,0.1
+로지스틱,5,"{""C"": 0.3, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07837,0.07837063140350789,0.2561,0.1
+로지스틱,6,"{""C"": 1, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07835,0.07834543957024045,0.25491,0.2
+로지스틱,7,"{""C"": 3, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07804,0.07804285356639412,0.25454,0.2
+로지스틱,8,"{""C"": 10, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07806,0.07805515511930154,0.25481,0.2
+로지스틱,9,"{""C"": 30, ""penalty"": ""l2""}",성공,1,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07805,0.07804551161360238,0.25478,0.3
+로지스틱,10,"{""C"": 0.001, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07158,0.07158432701682779,0.23893,0.0
+로지스틱,11,"{""C"": 0.003, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07102,0.07101564991769278,0.27822,0.1
+로지스틱,12,"{""C"": 0.01, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07242,0.07242058517595769,0.27708,0.1
+로지스틱,13,"{""C"": 0.03, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07768,0.07768129465011564,0.27141,0.1
+로지스틱,14,"{""C"": 0.1, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07859,0.07859351346325538,0.26246,0.3
+로지스틱,15,"{""C"": 0.3, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07935,0.07934853542106311,0.25866,1.0
+로지스틱,16,"{""C"": 1, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07875,0.07874786108091593,0.25592,2.4
+로지스틱,17,"{""C"": 3, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07822,0.07821763138876608,0.25463,4.9
+로지스틱,18,"{""C"": 10, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07804,0.07803583492796017,0.25478,12.7
+로지스틱,19,"{""C"": 30, ""penalty"": ""l1""}",성공,2,"'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its d",0.07804,0.07803915306765512,0.25479,18.8
+HistGB,0,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 50, ""l2_regularization"": 0.0}",성공,0,,0.09457,0.09456974725962033,0.32084,1.5
+HistGB,1,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.10057,0.1005692949063369,0.31502,1.5
+HistGB,2,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 50, ""l2_regularization"": 0.0}",성공,0,,0.10402,0.10401876103647756,0.31318,1.6
+HistGB,3,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.09451,0.09451363807837004,0.25507,1.6
+HistGB,4,"{""learning_rate"": 0.03, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 100, ""l2_regularization"": 0.0}",성공,0,,0.11313,0.11312663339605655,0.31425,1.7
+HistGB,5,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.10155,0.10154735869344546,0.3127,1.4
+HistGB,6,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.09866,0.0986597644672187,0.28847,1.4
+HistGB,7,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 100, ""l2_regularization"": 0.0}",성공,0,,0.09625,0.09625473721941086,0.32276,1.5
+HistGB,8,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.10083,0.1008343216574124,0.31455,1.4
+HistGB,9,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.10246,0.10245732018248248,0.31194,1.4
+HistGB,10,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 15, ""min_samples_leaf"": 50, ""l2_regularization"": 0.0}",성공,0,,0.09707,0.09706677592433545,0.30829,1.4
+HistGB,11,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.08084,0.08083734308878673,0.23807,1.5
+HistGB,12,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.08982,0.08981918107739918,0.25119,1.5
+HistGB,13,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 50, ""l2_regularization"": 0.0}",성공,0,,0.08252,0.0825182657614948,0.28572,1.5
+HistGB,14,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 100, ""l2_regularization"": 0.0}",성공,0,,0.12497,0.1249718666972519,0.30991,1.6
+HistGB,15,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.10182,0.10182344227491417,0.30582,1.4
+HistGB,16,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 7, ""min_samples_leaf"": 50, ""l2_regularization"": 1.0}",성공,0,,0.09792,0.09792081003832981,0.30279,1.3
+HistGB,17,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 0.0}",성공,0,,0.07682,0.07681653575501303,0.25236,1.4
+HistGB,18,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 20, ""l2_regularization"": 1.0}",성공,0,,0.10979,0.10979331842100977,0.28048,1.4
+HistGB,19,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 31, ""min_samples_leaf"": 100, ""l2_regularization"": 0.0}",성공,0,,0.08666,0.08665986225246373,0.30923,1.5
+랜덤포레스트,0,"{""max_depth"": null, ""min_samples_leaf"": 1}",성공,0,,0.0969,0.09690058662703953,0.21572,0.9
+랜덤포레스트,1,"{""max_depth"": null, ""min_samples_leaf"": 5}",성공,0,,0.11847,0.11847478936742496,0.2698,0.9
+랜덤포레스트,2,"{""max_depth"": null, ""min_samples_leaf"": 20}",성공,0,,0.12334,0.12333967127639889,0.31658,0.9
+랜덤포레스트,3,"{""max_depth"": null, ""min_samples_leaf"": 50}",성공,0,,0.12008,0.12008188464062292,0.31131,0.8
+랜덤포레스트,4,"{""max_depth"": null, ""min_samples_leaf"": 100}",성공,0,,0.11846,0.11846191209008473,0.30769,0.8
+랜덤포레스트,5,"{""max_depth"": 6, ""min_samples_leaf"": 1}",성공,0,,0.11936,0.11936167023191493,0.25448,0.8
+랜덤포레스트,6,"{""max_depth"": 6, ""min_samples_leaf"": 5}",성공,0,,0.1178,0.11779925288583178,0.25805,0.8
+랜덤포레스트,7,"{""max_depth"": 6, ""min_samples_leaf"": 20}",성공,0,,0.12363,0.12363009182244379,0.29753,0.8
+랜덤포레스트,8,"{""max_depth"": 6, ""min_samples_leaf"": 50}",성공,0,,0.11984,0.11983935323860448,0.29723,0.8
+랜덤포레스트,9,"{""max_depth"": 6, ""min_samples_leaf"": 100}",성공,0,,0.11984,0.11984233913294859,0.30378,0.8
+랜덤포레스트,10,"{""max_depth"": 10, ""min_samples_leaf"": 1}",성공,0,,0.10169,0.10168590146801408,0.19882,0.9
+랜덤포레스트,11,"{""max_depth"": 10, ""min_samples_leaf"": 5}",성공,0,,0.10926,0.10925838562022124,0.23411,0.9
+랜덤포레스트,12,"{""max_depth"": 10, ""min_samples_leaf"": 20}",성공,0,,0.12037,0.12036610158625012,0.30745,0.9
+랜덤포레스트,13,"{""max_depth"": 10, ""min_samples_leaf"": 50}",성공,0,,0.12,0.11999970491900801,0.31197,0.8
+랜덤포레스트,14,"{""max_depth"": 10, ""min_samples_leaf"": 100}",성공,0,,0.11866,0.11866297392609312,0.30681,0.8
+랜덤포레스트,15,"{""max_depth"": 16, ""min_samples_leaf"": 1}",성공,0,,0.0982,0.09820108004979707,0.18666,0.9
+랜덤포레스트,16,"{""max_depth"": 16, ""min_samples_leaf"": 5}",성공,0,,0.1156,0.11559913880822704,0.25497,0.9
+랜덤포레스트,17,"{""max_depth"": 16, ""min_samples_leaf"": 20}",성공,0,,0.12313,0.123125257859587,0.31629,0.9
+랜덤포레스트,18,"{""max_depth"": 16, ""min_samples_leaf"": 50}",성공,0,,0.12008,0.12008188464062292,0.31131,0.9
+랜덤포레스트,19,"{""max_depth"": 16, ""min_samples_leaf"": 100}",성공,0,,0.11846,0.11846191209008473,0.30769,0.8
