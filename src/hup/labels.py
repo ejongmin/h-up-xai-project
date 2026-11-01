@@ -87,6 +87,10 @@ def audit_events(corp_codes, years, first_dt=None, first_no=None):
                     if (classify_opinion(op) == "비적정") != any(o in ("의견거절", "부적정", "한정") for o in orig):
                         AUDIT_SOURCE["정정본과 판정이 다른 행"] += 1
                         AUDIT_SOURCE_DIFF.append({"corp_code": cc, "bsns_year": int(y), "정정본(API)": op, "최초 공시 원문": new})
+                    if classify_opinion(op) == "비적정" and not any(o in ("의견거절", "부적정", "한정") for o in orig):
+                        # 최초 공시는 적정, 정정본이 비적정 — 그 비적정은 정정 공시 접수일에 처음 공개됐다 (docs/15 §11)
+                        rows.append({"corp_code": cc, "bsns_year": int(y), "event_type": "감사의견", "detail": op + "(정정 공시)",
+                                     "event_date": (r.get("rcept_no") or "")[:8], "_fallback": False})
                     op = new if any(o in ("의견거절", "부적정", "한정") for o in orig) else "적정(원문)"
                 else:
                     AUDIT_SOURCE["원문 판독 불가 — API 의견 사용"] += 1
