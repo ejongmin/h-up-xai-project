@@ -159,8 +159,9 @@ def parse(blob, fy):
         if not re.fullmatch(r"-?\d+(\.\d+)?", txt):
             continue
         vals.setdefault((fs, kind, f"{pre}_{name}", names.get(name, "")), {}).setdefault(col, txt)
+        # 재무제표 통화 = 자산총계가 적힌 통화 (주석의 외화 금액은 보지 않는다 — 처음엔 모든 사실의 통화를 모아 원화 공시 508행을 잘못 걸었다)
         m = re.search(r"iso4217:([A-Z]{3})", units.get(el.get("unitRef"), ""))
-        if m:
+        if m and name == "Assets" and col == "thstrm_amount":
             cur.add(m.group(1))
     out = {}
     for (fs, kind, aid, nm), v in vals.items():
