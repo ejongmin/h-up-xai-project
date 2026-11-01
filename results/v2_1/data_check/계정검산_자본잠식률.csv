@@ -1,0 +1,41 @@
+﻿API_같은개념값,API대조,corp_code,bsns_year,2차_경로,2차_계정코드,2차_라벨,2차_값,1차_해당계정값,1차_영업이익,1차_비슷한계정,1차_재무기준,2차_재무기준
+"3,900,000,000",일치,00536523,2017,코드,ifrs-full_IssuedCapital,납입자본,3900000000,,10461861297.0,,CFS,CFS
+"61,199,516,793",일치,00341916,2017,코드,ifrs-full_IssuedCapital,자본금(납입자본),61199516793,,21702287357.0,dart_IssuedCapitalOfCommonStock:보통주자본금; ifrs_IssuedCapital:자본금(납입자본),CFS,CFS
+"21,720,608,024",일치,00104573,2017,코드,ifrs-full_IssuedCapital,납입자본,21720608024,,311079991.0,,OFS,OFS
+"61,199,516,793",일치,00341916,2018,코드,ifrs-full_IssuedCapital,납입자본,61199516793,,30975989508.0,dart_IssuedCapitalOfCommonStock:보통주자본금,CFS,CFS
+"7,146,100,000",일치,00151395,2017,코드,ifrs-full_IssuedCapital,Ⅰ. 자본금,7146100000,,-2011367370.0,dart_IssuedCapitalOfCommonStock:1.보통주자본금; ifrs_IssuedCapital:Ⅰ.자본금,OFS,OFS
+"17,043,598,000",일치,00264714,2016,코드,ifrs-full_IssuedCapital,보통주 자본금,17043598000,,46432176996.0,ifrs_IssuedCapital:보통주자본금,CFS,CFS
+"7,146,100,000",일치,00151395,2018,코드,ifrs-full_IssuedCapital,Ⅰ. 자본금,7146100000,,-3153331551.0,dart_IssuedCapitalOfCommonStock:1.보통주자본금; ifrs_IssuedCapital:Ⅰ.자본금,OFS,OFS
+"42,219,340,000",일치,00956930,2016,이름,dart_ContributedEquity,자본금,42219340000,42219340000.0,14842859682.0,dart_ContributedEquity:자본금,CFS,CFS
+"4,200,000,000",일치,00122579,2018,코드,ifrs-full_IssuedCapital,Ⅰ.자본금,4200000000,,21346820739.0,ifrs_IssuedCapital:Ⅰ.자본금,CFS,CFS
+"550,000,000",일치,01061327,2015,이름,ext_udf_BS_20153241712449_EquityAbstract,자본금,550000000,550000000.0,-45529122.0,-표준계정코드 미사용-:자본금,OFS,OFS
+"3,734,830,500",일치,00925189,2015,이름,dart_ContributedEquity,자본금,3734830500,3734830500.0,-1042343777.0,dart_ContributedEquity:자본금,CFS,CFS
+"1,900,000,000",일치,00177320,2017,코드,ifrs-full_IssuedCapital,Ⅰ.자본금(주석14),1900000000,,1993793837.0,dart_IssuedCapitalOfCommonStock:보통주자본금; ifrs_IssuedCapital:Ⅰ.자본금(주석14),OFS,OFS
+"107,750,000,000",일치,00102681,2016,이름,ext_udf_BS_2013326111852386_EquityAbstract,자본금,107750000000,107750000000.0,26345787636.0,-표준계정코드 미사용-:자본금,OFS,OFS
+"46,822,295,000",일치,00365387,2015,코드,ifrs-full_IssuedCapital,,46822295000,46822295000.0,74258957322.0,ifrs_IssuedCapital:자본금,CFS,CFS
+"7,980,155,000",일치,00587925,2018,코드,ifrs-full_IssuedCapital,,7980155000,7980155000.0,-6184878177.0,ifrs_IssuedCapital:자본금,CFS,OFS
+"231,475,017,420",일치,00545929,2017,코드,ifrs-full_IssuedCapital,납입자본,231475017420,,-26859177686.0,dart_IssuedCapitalOfCommonStock:보통주자본금; dart_IssuedCapitalOfPreferredStock:우선주자본금,OFS,OFS
+"44,087,625,000",일치,00115612,2015,이름,ext_udf_BS_2013312174510421_EquityAttributableToOwnersOfParent,자본금,44087625000,44087625000.0,-35633707893.0,-표준계정코드 미사용-:자본금,CFS,CFS
+"40,662,398,000",일치,00170558,2018,코드,ifrs-full_IssuedCapital,납입자본,40662398000,,519827214801.0,,CFS,CFS
+"4,434,345,000",일치,00587101,2015,코드,ifrs-full_IssuedCapital,보통주자본금,4434345000,,-2689049704.0,ifrs_IssuedCapital:보통주자본금,OFS,OFS
+"7,467,004,000",일치,00181943,2018,코드,ifrs-full_IssuedCapital,납입자본,7467004000,,1780439467.0,dart_IssuedCapitalOfCommonStock:보통주자본금,CFS,CFS
+"42,219,340,000",일치,00956930,2018,코드,ifrs-full_IssuedCapital,,42219340000,42219340000.0,39435371795.0,ifrs_IssuedCapital:자본금,CFS,CFS
+"1,000,000,000",일치,00852087,2015,코드,ifrs-full_IssuedCapital,,1000000000,1000000000.0,-1154079410.0,ifrs_IssuedCapital:자본금,OFS,OFS
+"16,104,646,000",일치,00147772,2017,코드,ifrs-full_IssuedCapital,I. 자본금,16104646000,,2316080042.0,-표준계정코드 미사용-:보통주자본금증가; ifrs_IssuedCapital:I.자본금,CFS,CFS
+"353,000,000",일치,01071944,2015,이름,ext_udf_BS_2015330193333772_EquityAbstract,자본금,353000000,353000000.0,-21705178.0,-표준계정코드 미사용-:자본금,OFS,OFS
+"2,818,000,000",일치,00660291,2015,이름,ext_udf_BS_201631516313369_EquityAbstract,자본금,2818000000,2818000000.0,1889629498.0,-표준계정코드 미사용-:자본금,OFS,OFS
+"100,000,000,000",일치,00102681,2015,이름,ext_udf_BS_2013326111852386_EquityAbstract,자본금,100000000000,100000000000.0,-79751996147.0,-표준계정코드 미사용-:자본금,OFS,OFS
+"13,439,992,978",일치,00147152,2017,코드,ifrs-full_IssuedCapital,납입자본,13439992978,,4170917586.0,dart_IssuedCapitalOfCommonStock:보통주자본금,CFS,CFS
+"27,078,205,000",일치,00490151,2015,코드,ifrs-full_IssuedCapital,보통주자본금,27078205000,,58789361532.0,ifrs_IssuedCapital:보통주자본금,CFS,CFS
+"11,112,986,500",일치,00398808,2016,이름,ext_udf_BS_201652165531383_EquityAttributableToOwnersOfParent,자본금,11112986500,11112986500.0,7898180121.0,-표준계정코드 미사용-:자본금,CFS,CFS
+"84,687,175,712",일치,00409672,2017,코드,ifrs-full_IssuedCapital,납입자본,84687175712,,20376236235.0,,CFS,CFS
+"54,004,530,232",일치,00363246,2018,코드,ifrs-full_IssuedCapital,납입자본,54004530232,,1436255458.0,,CFS,CFS
+"11,776,791,000",일치,00155382,2017,코드,ifrs-full_IssuedCapital,납입자본,11776791000,,-9935891542.0,,CFS,CFS
+"46,468,061,208",일치,00363246,2017,코드,ifrs-full_IssuedCapital,납입자본,46468061208,,6317620015.0,,CFS,CFS
+"36,018,248,000",일치,00121941,2017,코드,ifrs-full_IssuedCapital,납입자본,36018248000,,96720755409.0,,CFS,CFS
+"38,688,900,000",일치,00126186,2016,코드,ifrs-full_IssuedCapital,보통주납입자본,38688900000,,627092295270.0,,CFS,CFS
+"17,629,810,500",일치,00492894,2018,코드,ifrs-full_IssuedCapital,납입자본,17629810500,,-662608596.0,,CFS,CFS
+"106,970,250,000",일치,00255619,2018,코드,ifrs-full_IssuedCapital,l. 자본금,106970250000,,430699990552.0,ifrs_IssuedCapital:l.자본금,CFS,CFS
+"21,720,608,024",일치,00104573,2018,코드,ifrs-full_IssuedCapital,납입자본,21720608024,,366361934.0,,OFS,OFS
+"101,212,480,000",일치,00133511,2015,이름,ext_udf_BS_201221014415336_EquityAbstract,자본금,101212480000,101212480000.0,3162493177.0,-표준계정코드 미사용-:자본금,CFS,CFS
+"8,873,941,000",일치,00226547,2016,이름,dart_ContributedEquity,자본금,8873941000,8873941000.0,-135790820.0,dart_ContributedEquity:자본금,CFS,CFS

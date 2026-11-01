@@ -130,7 +130,7 @@ def build(mask, group):
         outcome = {"y": int(row["y"]), "observed": bool(end <= EVENT_CUTOFF)}
         if len(e):
             e0 = e.sort_values("event_date").iloc[0]
-            outcome.update(type=e0["event_type"], months=int(round((e0["event_date"] - T).days / 30.4)))
+            outcome.update(type=e0["event_type"], days=int((e0["event_date"] - T).days))
         checks_ = list(dict.fromkeys(f["check"] for f in [factor(row, n, c) for n, c in up.items()] if f["check"]))
         out.append({
             "_key": (row["corp_code"], int(row["bsns_year"])),
@@ -156,16 +156,50 @@ for i, c in enumerate(cards, 1):
     c["id"] = f"{i:03d}"
 # 시연 세 사례: 첫 부실 대상에서 ① 통과 ② 교정 ③ 보류 — 실제 사건이 있었던 기업을 먼저
 demo = {}
+# (시연 사례는 실제 사건이 있었던 기업을 먼저 골랐다 — 화면에 그렇게 밝힌다)
 for c in sorted([c for c in cards if c["group"] == "첫 부실 대상"], key=lambda c: (-c["outcome"]["y"], c["rank"])):
     demo.setdefault(c["status"], c["id"])
 names = pipeline.load()[["corp_code", "bsns_year", "corp_name"]].set_index(["corp_code", "bsns_year"])["corp_name"]
-local = {c["id"]: {"name": names.get(c["_key"], ""),
-                   "url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={first[c['_key']][0]}"} for c in cards}
+
+# ---- 공개판 익명화 (docs/15 §10) — 정확한 재무비율·표본 내 위치·순위·공시 월·사건 유형과 시점이 DART 대조로 기업을 특정하게 했다.
+# 공개판에는 구간만, 정확한 값은 로컬 전용 파일에만.
+EDGES = [(10, "하위 10% 이내", 5), (25, "하위 10~25%", 17.5), (50, "하위 25~50%", 37.5), (75, "상위 25~50%", 62.5),
+         (90, "상위 10~25%", 82.5), (100.1, "상위 10% 이내", 95)]
+
+
+def bucket(p):
+    return (None, None) if p is None else next((lab, mid) for e, lab, mid in EDGES if p < e)
+
+
+def rank_band(rank, n):
+    q = 100 * rank / n
+    return "상위 1% 이내" if q <= 1 else "상위 1~3%" if q <= 3 else "상위 3~5%" if q <= 5 else "상위 5~10%" if q <= 10 else "상위 10% 밖"
+
+
+local = {}
 for c in cards:
-    del c["_key"]
+    ex = {"corp_code": c["_key"][0], "bsns_year": c["_key"][1], "name": names.get(c["_key"], ""), "url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={first[c['_key']][0]}",
+          "filed": c["filed"], "window_end": c["window_end"], "rank": c["rank"], "rank_pct": c["rank_pct"],
+          "values": {}, "pct": {}, "cf": c["cf"], "outcome": c["outcome"]}
+    for f in c["up"] + c["down"] + c["ratios"]:
+        ex["values"][f["var"]], ex["pct"][f["var"]] = f["value"], f["pct"]
+        lab, mid = bucket(f["pct"])
+        f["value"], f["pct"] = lab or "", mid
+        if "shap" in f:
+            f["shap"] = round(f["shap"], 2)
+    c["filed"] = c["filed"][:5]                                   # 'YYYY년'
+    c["window_end"] = None
+    c["rank_band"] = rank_band(c["rank"], c["n_group"])
+    c["cf"] = [{"phrase": r["phrase"], "band_from": c["rank_band"], "band_to": rank_band(r["rank_to"], c["n_group"])} for r in c["cf"]]
+    c["outcome"] = {"y": c["outcome"]["y"], "observed": c["outcome"]["observed"]}
+    c["top_model"] = [{"var": m["var"], "shap": round(m["shap"], 2)} for m in c["top_model"]]
+    for k in ("rank", "rank_pct", "_key"):
+        del c[k]
+    local[c["id"]] = ex
+cards.sort(key=lambda c: (c["group"], ["상위 1% 이내", "상위 1~3%", "상위 3~5%", "상위 5~10%", "상위 10% 밖"].index(c["rank_band"]), c["id"]))
 fr = ev_res["결과"]["관측 기간 내 첫 부실 (주 분석)"]
 meta = {"판": config.VERSION, "모델": f"{b['chosen']} ({', '.join(f'{k} {v}' for k, v in cfg.items())}) — 검증 구간에서 사전 규칙으로 선택",
-        "구간": "평가 구간 T 2024~2025 (2차 수정 후 재평가를 1회 마친 구간)", "선정": "집단별 위험 상위 10%",
+        "구간": "평가 구간 T 2024~2025 (v2.1 수정 후 재평가를 마친 구간 — 독립 검증 아님)", "선정": "집단별 위험 상위 10%",
         "데이터": "최초 공시 원본 XBRL 재무 (기준시점에 실제로 공개된 값)", "카드수": len(cards),
         "성능": {"첫부실_PR_AUC": round(fr["PR-AUC"], 3), "CI": fr["PR-AUC_95CI"], "기준선배": round(fr["PR-AUC"] / fr["기준선"], 1),
                  "경보": fr["경보 (검증에서 정한 임계값 그대로)"]},

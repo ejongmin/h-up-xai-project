@@ -44,11 +44,18 @@ for var, (acc, words) in plan.items():
         api, _ = dart.financials(r.corp_code, int(r.bsns_year), fs_div=r["재무제표기준_1"])
         a1 = features.extract(api)
         paths[(how, aid if how == "코드" else nm)] += 1
-        out.append({"corp_code": r.corp_code, "bsns_year": int(r.bsns_year), "2차_경로": how, "2차_계정코드": aid, "2차_라벨": nm,
+        # 1차 API 응답에서 같은 개념(같은 계정코드 꼬리 — ifrs_/ifrs-full_ 접두어 차이 무시, 라벨 경로면 같은 이름)의 값 — 문서의 일치 수는 이 열로 센다
+        tail = aid.split("_", 1)[1] if (how == "코드" and aid) else None
+        same = {float(x["thstrm_amount"].replace(",", "")) for x in api
+                if (x.get("thstrm_amount") or "").replace(",", "").lstrip("-").isdigit() and x.get("sj_div") in ("BS", "IS", "CIS")
+                and ((tail and (x.get("account_id") or "").endswith("_" + tail)) or (not tail and (x.get("account_nm") or "").replace(" ", "") == (nm or "")))}
+        verdict = "API에 없음" if not same else ("일치" if val is not None and any(abs(v - float(val)) <= 1 for v in same) else "불일치")
+        out.append({"API_같은개념값": "; ".join(f"{v:,.0f}" for v in sorted(same)), "API대조": verdict,
+                    "corp_code": r.corp_code, "bsns_year": int(r.bsns_year), "2차_경로": how, "2차_계정코드": aid, "2차_라벨": nm,
                     "2차_값": val, "1차_해당계정값": a1[acc], "1차_영업이익": a1["op_income"],
                     "1차_비슷한계정": api_names(api, words), "1차_재무기준": r["재무제표기준_1"], "2차_재무기준": r["재무제표기준_2"]})
     d = config.RESULTS / "data_check"
     pd.DataFrame(out).to_csv(d / f"계정검산_{var}.csv", index=False, encoding="utf-8-sig")
-    print(f"== {var}: 1차 결측·2차 값 {len(new)}행 중 {len(s)}행 표본")
+    print(f"== {var}: 1차 결측·2차 값 {len(new)}행 중 {len(s)}행 표본 · API 대조 {pd.DataFrame(out)['API대조'].value_counts().to_dict()}")
     for k, v in paths.most_common():
         print("  ", v, k)

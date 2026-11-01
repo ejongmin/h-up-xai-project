@@ -160,7 +160,7 @@ const pct = (p, d = 1) => (p * 100).toFixed(d) + "%";
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const state = { group: "전체", status: "전체", sector: "전체", sort: "prob", q: "" };
 
-$("#banner").innerHTML = `<b>${esc(D.meta.원천)}</b> · ${esc(D.meta.구간)} · ${esc(D.meta.선정)} · 확률 보정 ${esc(D.meta.보정)}. 2차 연구(최초 공시 원본 재무)가 끝나면 이 화면을 갱신합니다.`;
+$("#banner").innerHTML = `<b>${esc(D.meta.원천)}</b> · ${esc(D.meta.구간)} · ${esc(D.meta.선정)} · 확률 보정 ${esc(D.meta.보정)}. 비교용으로 고정한 1차 화면입니다 — 현재 결과는 <a href="../">기업 위험 검토 도구(2차)</a>.`;
 
 const cnt = k => C.filter(c => c.status === k).length;
 $("#stats").innerHTML = [

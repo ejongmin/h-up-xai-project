@@ -473,7 +473,16 @@ def test_docs_numbers_match_results():
         j = json.loads(f.read_text())
         v = j["결과"]["앙상블(비보정)"]["PR-AUC"]
         checks.append(("평가 PR-AUC", round(float(v), 3),
-                       ["docs/20_최종보고서.md", "README.md", "docs/10_실측결과.md"]))
+                       ["docs/20_최종보고서.md", "docs/10_실측결과.md"]))
+
+    # 현재 결론(v2.1) — README 와 최종보고서 요약이 v2.1 평가 결과와 맞아야 한다 (2026-11-01)
+    f = root / "results" / "v2_1" / "final" / "평가결과.json"
+    if f.exists():
+        r = json.loads(f.read_text())["결과"]
+        checks.append(("v2.1 첫 부실 PR-AUC", round(float(r["관측 기간 내 첫 부실 (주 분석)"]["PR-AUC"]), 3),
+                       ["README.md", "docs/20_최종보고서.md", "docs/15_2차연구_계획_사전고정.md"]))
+        checks.append(("v2.1 전체 PR-AUC", round(float(r["전체 (보조)"]["PR-AUC"]), 3),
+                       ["README.md", "docs/20_최종보고서.md", "docs/15_2차연구_계획_사전고정.md"]))
 
     # 2026-10-10: §3-4·§3-7 이 검증 구간 확대 전 값(유의 11개, ROA 0.311)으로 남아 있었다.
     # 문서 문장에 그대로 들어가는 문구로 대조한다 (파일, 찾을 문구).

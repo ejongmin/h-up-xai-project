@@ -48,7 +48,7 @@ input[type=search]{width:120px}
 .count{margin-left:auto;color:var(--muted);font-size:13px}
 .groupnote{font-size:13px;color:var(--ink2);padding-top:10px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding-block:14px 40px}
-.tile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;background:var(--surface);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);cursor:pointer;border:1.5px solid transparent}
+.tile{all:unset;box-sizing:border-box;display:flex;text-align:left;flex-direction:column;gap:6px;background:var(--surface);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);cursor:pointer;border:1.5px solid transparent}
 .tile:hover,.tile:focus-visible{border-color:var(--navy)}
 .tile.hold{background:transparent;border:1.5px dashed var(--line)}
 .meta{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--ink2)}
@@ -58,6 +58,7 @@ input[type=search]{width:120px}
 .chip.보류{background:var(--grey-soft);color:var(--ink2)}
 .rank{display:flex;align-items:baseline;gap:6px}
 .rank .v{font-size:26px;font-weight:800;color:var(--terra)}
+.rank .v.band{font-size:19px}
 .rank .r{font-size:12.5px;color:var(--muted)}
 .first{font-size:13.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.9em}
 .empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px}
@@ -148,10 +149,10 @@ footer{padding-block:10px 40px;font-size:12px;color:var(--muted)}
   <span class="count" id="count"></span>
 </div>
 <div class="groupnote" id="groupnote"></div>
-<main class="grid" id="grid" aria-live="polite"></main>
+<main class="grid" id="grid"></main>
 <footer>
-  익명 사례입니다(기업명·종목코드 없음, 업종 대분류·공시 월만). DART 공개 공시만 사용했습니다.
-  재현: <code>HUP_VERSION=v2 PYTHONPATH=src .venv/bin/python scripts/site_data_v2.py</code>
+  익명 사례입니다 — 기업명·종목코드·정확한 재무비율·순위·공시 월·사건 시점을 싣지 않고 업종 대분류·공시 연도·표본 내 구간만 보여줍니다. DART 공개 공시만 사용했습니다.
+  재현: <code>HUP_VERSION=v2.1 PYTHONPATH=src .venv/bin/python scripts/site_data_v2.py</code>
 </footer>
 </div>
 <dialog id="dlg" aria-labelledby="dTitle"></dialog>
@@ -168,23 +169,32 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const state = { group: "첫 부실 대상", status: "전체", sector: "전체", q: "" };
 const perf = M.성능;
+const X = id => (L && L[id] && L[id].values) ? L[id] : null;      // 로컬판의 정확한 값 (공개판에는 없다)
+const nFirst = (C.find(c => c.group === "첫 부실 대상")?.n_group || 0).toLocaleString();
 
-if (SCORE_ONLY) { $("#modebar").hidden = false; $("#modebar").textContent = "사용성 점검 모드 — 위험 순위와 원문만 보여줍니다 (설명 카드·재무비율·주의 표시 숨김)."; }
+if (SCORE_ONLY) {
+  $("#modebar").hidden = false;
+  $("#modebar").textContent = "사용성 점검 모드 — 위험 순위와 원문만 보여줍니다 (설명 카드·재무비율·검사 상태·실제 결과 숨김).";
+  $("#fStatus").hidden = true;
+}
 $("#can").innerHTML = `
   <div><b>할 수 있는 것</b>처음 부실해지는 기업의 위험 <b style="display:inline">순위</b>는 무작위보다 낫습니다 — 평가 구간 PR-AUC ${perf.첫부실_PR_AUC} (무작위의 ${perf.기준선배}배, 95% 구간 ${perf.CI[0].toFixed(3)}~${perf.CI[1].toFixed(3)}). 우선 검토할 기업을 고르는 보조 자료입니다.</div>
-  <div class="no"><b>할 수 없는 것</b>경보로 쓰기는 부족합니다 — 미리 정한 경보 기준으로 첫 부실 대상 ${(C.find(c => c.group === "첫 부실 대상")?.n_group || 0).toLocaleString()}곳 중 ${perf.경보["경보 수"]}곳만 경보했고 적중 ${perf.경보.적중}. 부실 확률은 이 집단에서 보정이 맞지 않아 표시하지 않습니다.</div>
-  <div><b>근거</b>${esc(M.데이터)} · ${esc(M.모델)} · ${esc(M.구간)}. 결과를 보기 전에 정한 절차로 한 번 평가했습니다.</div>`;
+  <div class="no"><b>할 수 없는 것</b>경보로 쓰기는 부족합니다 — 미리 정한 경보 기준으로 첫 부실 대상 ${nFirst}개 기업-연도 중 ${perf.경보["경보 수"]}건을 경보했고 적중 ${perf.경보.적중}건. 부실 확률은 이 집단에서 보정이 맞지 않아 표시하지 않습니다.</div>
+  <div><b>근거</b>${esc(M.데이터)} · ${esc(M.모델)} · ${esc(M.구간)}. 결과를 보기 전에 정한 절차로 평가했습니다(앞선 v2 결과는 추출 오류로 무효 처리).</div>`;
 
 const demoInfo = { "통과": ["일반 설명", "검사를 모두 통과한 카드 — 어떤 재무 요인이 순위를 끌어올렸는가"],
   "교정": ["오류 수정", "예전 방식이면 사실과 다른 문장이 나갔을 카드 — 무엇을 어떻게 고쳤는가"],
   "보류": ["설명 보류", "설명을 믿을 수 없어 요인 대신 이유를 내는 카드 — 어디까지 믿을 것인가"] };
-$("#demo").innerHTML = Object.entries(M.demo).filter(([, id]) => id).map(([k, id]) => `
-  <button data-id="${id}"><div class="k chip ${k}" style="display:inline-block">${demoInfo[k][0]}</div>
-  <div class="t">사례 #${id}</div><div class="d">${demoInfo[k][1]}</div></button>`).join("");
+$("#demo").innerHTML = Object.entries(M.demo).filter(([, id]) => id).map(([k, id]) => SCORE_ONLY
+  ? `<button data-id="${id}"><span class="t">사례 #${id}</span></button>`
+  : `<button data-id="${id}"><span class="k chip ${k}" style="display:inline-block">${demoInfo[k][0]}</span>
+     <span class="t" style="display:block">사례 #${id}</span><span class="d" style="display:block">${demoInfo[k][1]}</span></button>`).join("")
+  + (SCORE_ONLY ? "" : `<p class="note" style="grid-column:1/-1;margin:0">시연 사례는 실제 사건이 있었던 기업을 먼저 골랐습니다 — 순위가 맞은 사례만 있는 것이 아닙니다.</p>`);
 $("#demo").onclick = e => { const b = e.target.closest("button"); if (b) open(b.dataset.id); };
 
 function seg(el, key, opts) {
   el.innerHTML = opts.map(o => `<button type="button" data-v="${o}" aria-pressed="${state[key] === o}">${o}</button>`).join("");
+  el.setAttribute("role", "group");
   el.onclick = e => { const b = e.target.closest("button"); if (!b) return; state[key] = b.dataset.v;
     el.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); };
 }
@@ -196,94 +206,110 @@ $("#fSector").onchange = e => { state.sector = e.target.value; render(); };
 $("#fSearch").oninput = e => { state.q = e.target.value.replace(/\D/g, ""); render(); };
 const groupNote = { "첫 부실 대상": "기준 시점까지 관측된 부실 이력이 없는 기업 — 조기 경보가 의미 있는 집단입니다 (주 분석).",
   "부실 이력 있음": "이미 부실을 겪은 기업 — 과거 이력만으로도 상당 부분 맞혀지므로 따로 봅니다 (보조)." };
+const BANDS = ["상위 1% 이내", "상위 1~3%", "상위 3~5%", "상위 5~10%", "상위 10% 밖"];
+const rankBig = c => X(c.id) ? `${X(c.id).rank.toLocaleString()}위` : c.rank_band;
+const rankSub = c => X(c.id) ? `${c.n_group.toLocaleString()}개 기업-연도 중 · 상위 ${X(c.id).rank_pct < 0.1 ? "0.1% 이내" : X(c.id).rank_pct + "%"}` : `순위 구간 · ${c.n_group.toLocaleString()}개 기업-연도 중`;
+const rankKey = c => X(c.id) ? X(c.id).rank : BANDS.indexOf(c.rank_band) * 1e6 + +c.id;
 
 function render() {
-  const xs = C.filter(c => c.group === state.group && (state.status === "전체" || c.status === state.status)
+  const xs = C.filter(c => c.group === state.group && (SCORE_ONLY || state.status === "전체" || c.status === state.status)
     && (state.sector === "전체" || c.sector === state.sector) && (!state.q || c.id.includes(state.q)))
-    .sort((a, b) => a.rank - b.rank);
+    .sort((a, b) => rankKey(a) - rankKey(b));
   $("#groupnote").textContent = groupNote[state.group];
-  $("#count").textContent = `${xs.length}곳 표시 (집단 위험 상위 10%)`;
+  $("#count").textContent = `${xs.length}건 표시 · 집단 위험 상위 10% 중`;
   $("#grid").innerHTML = xs.length ? xs.map(c => `
-    <button class="tile ${!SCORE_ONLY && c.status === "보류" ? "hold" : ""}" data-id="${c.id}" aria-label="사례 ${c.id} 열기">
-      <div class="meta"><span>사례 #${c.id} · FY${c.fy} · ${esc(c.sector)}</span>${SCORE_ONLY ? "" : `<span class="chip ${c.status}">${c.status}</span>`}</div>
-      <div class="rank"><span class="v">${c.rank.toLocaleString()}위</span><span class="r">/ ${c.n_group.toLocaleString()}곳 · 상위 ${topPct(c)}</span></div>
-      <div class="meta"><span>공시 ${c.filed}</span>${L && L[c.id] ? `<span>${esc(L[c.id].name)}</span>` : ""}</div>
-      ${SCORE_ONLY ? "" : `<div class="first">${c.status === "보류" ? "설명 보류 — " + esc(c.hold[0].split(" — ")[0]) : esc(c.up[0]?.text || "")}</div>`}
+    <button class="tile ${!SCORE_ONLY && c.status === "보류" ? "hold" : ""}" data-id="${c.id}">
+      <span class="meta"><span>사례 #${c.id} · FY${c.fy} · ${esc(c.sector)}</span>${SCORE_ONLY ? "" : `<span class="chip ${c.status}">${c.status}</span>`}</span>
+      <span class="rank"><span class="v ${X(c.id) ? "" : "band"}">${rankBig(c)}</span><span class="r">${rankSub(c)}</span></span>
+      <span class="meta"><span>공시 ${X(c.id) ? X(c.id).filed : c.filed}</span>${L && L[c.id] ? `<span>${esc(L[c.id].name)}</span>` : ""}</span>
+      ${SCORE_ONLY ? "" : `<span class="first">${c.status === "보류" ? "설명 보류 — " + esc(c.hold[0].split(" — ")[0]) : esc(c.up[0]?.text || "")}</span>`}
     </button>`).join("") : `<div class="empty">조건에 맞는 기업이 없습니다.</div>`;
 }
 $("#grid").onclick = e => { const t = e.target.closest(".tile"); if (t) open(t.dataset.id); };
 
-function posBar(pct, riskyHigh, median) {
+function posBar(pct, riskyHigh, median, exact) {
   if (pct == null) return `<span class="note">값 없음</span>`;
   const risk = riskyHigh ? "left:50%;right:0" : "left:0;right:50%";
   const safe = (riskyHigh ? pct < 50 : pct > 50) ? "safe" : "";
-  return `<div class="pos ${safe}" role="img" aria-label="표본 내 위치 ${pct} (0~100, 중앙값 50)"><span class="risk" style="${risk}"></span>
+  return `<div class="pos ${safe}" role="img" aria-label="표본 내 위치 ${exact ? pct : "구간 중앙 " + pct} (0~100, 중앙값 50)"><span class="risk" style="${risk}"></span>
     <span class="med" style="left:50%"></span><span class="dot" style="left:${pct}%"></span></div>
     <div class="poslab"><span>낮음</span><span>중앙값 ${esc(median)}</span><span>높음</span></div>`;
 }
-function factorRow(f, max) {
+function factorRow(c, f, max) {
+  const x = X(c.id), val = x ? x.values[f.var] : f.value, pct = x ? x.pct[f.var] : f.pct;
   const w = Math.max(Math.round(Math.abs(f.shap) / max * 120), 4);
-  return `<div class="factor"><div><div class="s">${esc(f.text)}</div><div class="nv">${esc(f.var)}${f.value ? " · 공시 " + esc(f.value) : ""}</div>
+  return `<div class="factor"><div><div class="s">${esc(f.text)}</div><div class="nv">${esc(f.var)}${val ? (x ? " · 공시 " : " · 표본 내 ") + esc(val) : ""}</div>
     <div class="contrib"><span class="b ${f.shap < 0 ? "neg" : ""}" style="width:${w}px"></span>위험 점수 기여 ${f.shap > 0 ? "+" : ""}${f.shap.toFixed(3)}</div></div>
-    <div>${posBar(f.pct, f.risky_high, f.median)}</div></div>`;
+    <div>${posBar(pct, f.risky_high, f.median, !!x)}</div></div>`;
 }
-const topPct = c => c.rank_pct < 0.1 ? "0.1% 이내" : c.rank_pct + "%";
 const step = (n, title, body) => `<section class="step"><div class="n">${n}</div><div><h3>${title}</h3>${body}</div></section>`;
 
 function open(id) {
-  const c = C.find(x => x.id === id), dlg = $("#dlg"), loc = L && L[id];
+  const c = C.find(x => x.id === id), dlg = $("#dlg"), loc = L && L[id], x = X(id);
   const max = Math.max(...[...c.up, ...c.down, ...c.top_model].map(f => Math.abs(f.shap)), 1e-6);
   const holdNames = ["단위 의심", "핵심값 결측", "설명 불안정", "문장 방향 충돌"];
   const checks = holdNames.map(n => { const hit = c.hold.some(h => h.startsWith(n));
       return `<div class="ck ${hit ? "bad" : "ok"}"><span class="i">${hit ? "✕" : "✓"}</span><span>${n}${hit ? " — 걸림" : ""}</span></div>`; }).join("")
     + `<div class="ck ${c.fixed.length ? "fix" : "ok"}"><span class="i">${c.fixed.length ? "!" : "✓"}</span><span>사실 단정 ${c.fixed.length ? `— 문장 ${c.fixed.length}개 교정` : "— 이상 없음"}</span></div>`;
-  const src = loc ? `<div class="src"><a href="${esc(loc.url)}" target="_blank" rel="noopener">DART 원문 열기 — ${esc(loc.name)} FY${c.fy} 사업보고서 (최초 공시) ↗</a></div>`
-                  : `<div class="src note">공개판은 익명이라 원문 링크를 싣지 않습니다. 발표·점검용 로컬판에서는 여기서 DART 최초 공시 원문이 열립니다.</div>`;
+  const src = loc && loc.url ? `<div class="src"><a href="${esc(loc.url)}" target="_blank" rel="noopener">DART 원문 열기 — ${esc(loc.name)} FY${c.fy} 사업보고서 (최초 공시) ↗</a></div>`
+                  : `<div class="src note">공개판은 익명이라 원문 링크·정확한 수치를 싣지 않습니다(표본 내 구간만). 발표·점검용 로컬판에서는 여기서 DART 최초 공시 원문이 열립니다.</div>`;
   let n = 0, body = "";
   body += step(++n, "언제 알 수 있었던 정보로 판단했나", `<div class="when">
-      <div>공시 기준<b>${c.filed}</b>FY${c.fy} 사업보고서 최초 공시 · ${c.basis} 재무제표</div>
-      <div>예측 기간<b>${c.filed} ~ ${c.window_end}</b>공시 후 400일 안의 감사의견 비적정·회생절차 신청</div></div>
+      <div>공시 기준<b>${x ? x.filed : c.filed}</b>FY${c.fy} 사업보고서 최초 공시 · ${c.basis} 재무제표</div>
+      <div>예측 기간<b>${x ? `${x.filed} ~ ${x.window_end}` : "공시 후 400일"}</b>감사의견 비적정·회생절차 신청</div></div>
       <p class="note">재무값은 그날 공개된 최초 공시 원본(XBRL)에서 읽었습니다. 나중의 정정 공시 값은 쓰지 않습니다.</p>`);
-  body += step(++n, "위험 순위", `<div class="hero"><span class="v">${c.rank.toLocaleString()}위</span>
-      <span class="sub">${esc(c.group)} ${c.n_group.toLocaleString()}곳 중 · 상위 ${topPct(c)}</span>${c.alert ? `<span class="alert">사전 경보 기준 초과</span>` : ""}</div>
-      <p class="note">부실 확률은 표시하지 않습니다 — 이 집단에서 확률 보정이 맞지 않았습니다. 순위는 같은 집단 안에서 위험 점수가 높은 순서입니다.</p>`);
+  body += step(++n, "위험 순위", `<div class="hero"><span class="v">${rankBig(c)}</span>
+      <span class="sub">${esc(c.group)} · ${rankSub(c)}</span>${!SCORE_ONLY && c.alert ? `<span class="alert">사전 경보 기준 초과</span>` : ""}</div>
+      <p class="note">부실 확률은 표시하지 않습니다 — 이 집단에서 확률 보정이 맞지 않았습니다. 순위는 같은 집단 안에서 위험 점수가 높은 순서이며, 순위가 높다고 반드시 부실해지는 것은 아닙니다.</p>`);
   if (!SCORE_ONLY) {
+    const cfRow = (r, i) => x && x.cf[i] ? `<b>${x.cf[i].rank_from}위 → ${x.cf[i].rank_to.toLocaleString()}위</b>` : `<b>${esc(r.band_from)} → ${esc(r.band_to)}</b>`;
     body += step(++n, "어떤 재무 요인이 위험 판단에 영향을 줬나", c.status === "보류"
       ? `<div class="holdbox"><b>설명 보류 — 이 기업의 요인 설명을 내지 않습니다</b><ul>${c.hold.map(h => `<li>${esc(h)}</li>`).join("")}</ul></div>`
       : `${c.wiped ? `<p class="note">※ 자본총계가 음(-)입니다(완전 자본잠식). 부채비율·자기자본비율은 해석할 수 없어 제외했습니다.</p>` : ""}
-         <div><b style="font-size:13px;color:var(--ink2)">위험을 높인 요인</b>${c.up.map(f => factorRow(f, max)).join("") || `<p class="note">해당 없음</p>`}</div>
-         <div style="margin-top:8px"><b style="font-size:13px;color:var(--ink2)">위험을 낮춘 요인</b>${c.down.map(f => factorRow(f, max)).join("") || `<p class="note">해당 없음 (안정 변수 중 위험을 낮춘 항목이 없습니다)</p>`}</div>
+         <div><b style="font-size:13px;color:var(--ink2)">위험을 높인 요인</b>${c.up.map(f => factorRow(c, f, max)).join("") || `<p class="note">해당 없음</p>`}</div>
+         <div style="margin-top:8px"><b style="font-size:13px;color:var(--ink2)">위험을 낮춘 요인</b>${c.down.map(f => factorRow(c, f, max)).join("") || `<p class="note">해당 없음 (안정 변수 중 위험을 낮춘 항목이 없습니다)</p>`}
+           ${c.down.length ? `<p class="note">문장은 실제 값의 방향을, 묶음은 모델의 판단을 따릅니다 — 값이 나빠 보여도 모델은 위험을 낮춘 쪽으로 봤을 수 있습니다. 그 어긋남이 확인할 지점입니다.</p>` : ""}</div>
+         <p class="note">설명 요인은 모델이 그 값을 근거로 판단했다는 뜻이지, 부실의 원인이라는 뜻이 아닙니다.</p>
          ${c.cf.length ? `<div class="cf" style="margin-top:10px"><b style="font-size:13px;color:var(--ink2)">무엇이 달라지면 (모델 기준 — 인과 효과가 아닙니다)</b>
-            ${c.cf.map(r => `<div class="row">${esc(r.phrase)} <b>${r.rank_from}위 → ${r.rank_to.toLocaleString()}위</b></div>`).join("")}</div>` : ""}`);
-    body += step(++n, "공시 재무비율 — 근거를 직접 확인", `<div class="tw"><table class="rt"><thead><tr><th>재무비율</th><th style="text-align:right">이 기업</th><th style="text-align:right">학습 표본 중앙값</th><th style="min-width:150px">표본 내 위치</th></tr></thead><tbody>
-      ${c.ratios.map(r => `<tr><td>${esc(r.var)}</td><td class="num">${esc(r.value) || "—"}</td><td class="num">${esc(r.median)}</td><td>${posBar(r.pct, r.risky_high, r.median)}</td></tr>`).join("")}
+            ${c.cf.map((r, i) => `<div class="row">${esc(r.phrase)} ${cfRow(r, i)}</div>`).join("")}</div>` : ""}`);
+    body += step(++n, "공시 재무비율 — 근거를 직접 확인", `<div class="tw"><table class="rt"><thead><tr><th>재무비율</th><th style="text-align:right">이 기업${x ? "" : " (표본 내 구간)"}</th><th style="text-align:right">학습 표본 중앙값</th><th style="min-width:150px">표본 내 위치</th></tr></thead><tbody>
+      ${c.ratios.map(r => { const v = x ? x.values[r.var] : r.value, p = x ? x.pct[r.var] : r.pct;
+        return `<tr><td>${esc(r.var)}</td><td class="num">${esc(v) || "—"}</td><td class="num">${esc(r.median)}</td><td>${posBar(p, r.risky_high, r.median, !!x)}</td></tr>`; }).join("")}
       </tbody></table></div>${src}`);
     body += step(++n, "어디까지 믿고, 무엇을 더 확인할까", `<div class="checks">${checks}</div>
       ${c.fixed.map(f => `<div class="ba"><div class="o">${esc(f.old)}</div><div class="arr">→</div><div class="nw">${esc(f.new)}</div></div>`).join("")}
       ${c.fixed.length ? `<p class="note">왼쪽은 예전 방식(표본 중앙값 기준 판정)이 냈을 문장, 오른쪽은 실측값이 절대 기준을 넘지 않아 바꾼 지금의 문장입니다.</p>` : ""}
-      ${c.notes.length ? `<div style="margin-top:10px"><b style="font-size:13px">데이터 주의</b><ul class="notes">${c.notes.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
-      <div style="margin-top:10px"><b style="font-size:13px">사업보고서에서 더 확인할 곳</b> <span class="note">(모델이 보지 않은 정보)</span><ul class="todo">${c.checks.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`);
+      <p class="note">사실 단정 검사는 7개 변수(순이익률·영업이익률·영업현금흐름 2종·자본잠식률·이자보상배율·유동비율)의 절대 기준만 봅니다. 부채비율·자기자본비율 등의 문장은 표본 중앙값과 비교한 상대 판단입니다.</p>
+      ${c.notes.length ? `<div style="margin-top:10px"><b style="font-size:13px">데이터 주의</b><ul class="notes">${c.notes.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>` : ""}
+      <div style="margin-top:10px"><b style="font-size:13px">사업보고서에서 더 확인할 곳</b> <span class="note">(모델이 보지 않은 정보)</span><ul class="todo">${c.checks.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`);
   } else {
     body += step(++n, "원문", src);
   }
-  const o = c.outcome;
-  const outTxt = !o.observed && !o.y ? "예측 기간이 사건 자료 수집일(2026-09-04) 뒤에 끝나 아직 관측이 끝나지 않았습니다."
-    : o.y ? `공시 후 약 ${o.months}개월 뒤 부실 사건(${esc(o.type)})이 있었습니다.` : "예측 기간(400일) 안에 부실 사건이 없었습니다.";
-  body += `<details class="out"><summary>이후 실제 사건 보기</summary><p style="margin:8px 0 0">${outTxt}</p>
-    <p class="note">순위가 높아도 사건이 없을 수 있고, 낮아도 있을 수 있습니다. 당시 예측과 결과를 비교해 보세요.</p></details>`;
-  if (!SCORE_ONLY) body += `<section><b style="font-size:13px;color:var(--ink2)">모델이 실제로 많이 본 변수</b> <span class="note">(카드에 오르지 않는 변수 포함)</span><div class="mtop" style="margin-top:6px">${c.top_model.map(m => `
-    <div><span>${esc(m.var)}</span><span class="contrib"><span class="b ${m.shap < 0 ? "neg" : ""}" style="width:${Math.max(Math.round(Math.abs(m.shap) / max * 120), 4)}px"></span></span><span>${m.shap > 0 ? "+" : ""}${m.shap.toFixed(3)}</span></div>`).join("")}</div></section>`;
+  if (!SCORE_ONLY) {
+    const o = x ? x.outcome : c.outcome;
+    const outTxt = !o.observed && !o.y ? "예측 기간이 사건 자료 수집일(2026-09-04) 뒤에 끝나 아직 관측이 끝나지 않았습니다."
+      : o.y ? (o.days != null ? `공시 후 ${o.days}일 뒤 부실 사건(${esc(o.type)})이 있었습니다.` : "예측 기간(400일) 안에 부실 사건이 있었습니다.")
+      : "예측 기간(400일) 안에 부실 사건이 없었습니다.";
+    body += `<details class="out"><summary>이후 실제 사건 보기</summary><p style="margin:8px 0 0">${outTxt}</p>
+      <p class="note">순위가 높아도 사건이 없을 수 있고, 낮아도 있을 수 있습니다. 당시 예측과 결과를 비교해 보세요.</p></details>`;
+    body += `<section><b style="font-size:13px;color:var(--ink2)">모델이 실제로 많이 본 변수</b> <span class="note">(카드에 오르지 않는 변수 포함)</span><div class="mtop" style="margin-top:6px">${c.top_model.map(m => `
+      <div><span>${esc(m.var)}</span><span class="contrib"><span class="b ${m.shap < 0 ? "neg" : ""}" style="width:${Math.max(Math.round(Math.abs(m.shap) / max * 120), 4)}px"></span></span><span>${m.shap > 0 ? "+" : ""}${m.shap.toFixed(2)}</span></div>`).join("")}</div></section>`;
+  }
   dlg.innerHTML = `<div class="dhead"><div class="t"><div class="meta"><span>FY${c.fy} · ${esc(c.sector)} · ${esc(c.group)}</span>${SCORE_ONLY ? "" : `<span class="chip ${c.status}">${c.status}</span>`}</div>
-    <h2 id="dTitle">사례 #${c.id}${loc ? " · " + esc(loc.name) : ""}</h2></div><button class="x" aria-label="닫기">×</button></div><div class="dbody">${body}</div>`;
+    <h2 id="dTitle">사례 #${c.id}${loc && loc.name ? " · " + esc(loc.name) : ""}</h2></div><button class="x" aria-label="닫기">×</button></div><div class="dbody">${body}</div>`;
   dlg.querySelector(".x").onclick = () => dlg.close();
   dlg.showModal();
   history.replaceState(null, "", location.search + "#" + id);
 }
 $("#dlg").addEventListener("click", e => { if (e.target.id === "dlg") e.target.close(); });
 $("#dlg").addEventListener("close", () => history.replaceState(null, "", location.pathname + location.search));
+function fromHash() {
+  const h = location.hash.slice(1);
+  if (h && C.some(c => c.id === h)) { state.group = C.find(c => c.id === h).group; seg($("#fGroup"), "group", ["첫 부실 대상", "부실 이력 있음"]); render(); open(h); }
+}
+window.addEventListener("hashchange", fromHash);
 render();
-const h = location.hash.slice(1);
-if (h && C.some(c => c.id === h)) { state.group = C.find(c => c.id === h).group; seg($("#fGroup"), "group", ["첫 부실 대상", "부실 이력 있음"]); render(); open(h); }
+fromHash();
 </script>
 </body>
 </html>
