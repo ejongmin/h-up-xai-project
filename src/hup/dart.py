@@ -428,3 +428,69 @@ def document(rcept_no, max_chars=30000):
         raw = ""
     _write_cache(cf, {"raw": raw[:200000]})
     return _clean_html(raw.encode("utf-8", "replace"))[:max_chars]
+
+
+def classify_audit_report(text):
+    """감사보고서 본문(앞부분) → '의견거절'|'부적정'|'한정'|'적정'|'불명'.
+
+    현행 서식(2018~)은 의견 문단 다음에 '…근거' 제목이 한 번 나온다 — '의견거절근거·부적정의견근거·한정의견근거·감사의견근거' 로 판정한다.
+    옛 서식은 앞부분의 표현으로 본다(전기·내부회계관리제도에 관한 문장은 지운다).
+    2026-11-01 검증에서 바로잡은 오판: 내부회계관리제도 '부적정의견' 언급, 전기 재무제표 '의견거절' 언급, 제목 없이 '의견을 표명하지 않습니다' 로 시작하는 의견거절.
+    """
+    t = text[:12000]
+    for pat, name in ((r"의견\s*거절\s*근거", "의견거절"), (r"부적정\s*의견\s*근거", "부적정"),
+                      (r"한정\s*의견\s*근거", "한정"), (r"감사\s*의견\s*근거", "적정")):
+        if re.search(pat, t):
+            return name
+    t = re.sub(r"[^.。]*(내부회계관리|전기|전전기)[^.。]*[.。]", " ", t[:6000])
+    if re.search(r"의견을\s*표명하지\s*(않|아니)|의견\s*거절", t):
+        return "의견거절"
+    if re.search(r"부적정", t):
+        return "부적정"
+    if re.search(r"제외하고는|한정의견", t):
+        return "한정"
+    if re.search(r"(공정|적정)하게\s*표시", t):
+        return "적정"
+    return "불명"
+
+
+def audit_opinion_original(rcept_no):
+    """최초 공시(접수번호) 원문에 첨부된 감사보고서들의 의견 (docs/15 §11).
+
+    감사의견 API 는 최신 정정본의 의견을 준다 — 재감사로 의견거절이 적정으로 바뀐 경우 최초 공시의 비적정이 사라진다.
+    원문 zip 은 크므로 판정과 앞부분 발췌만 캐시한다. 반환: {"reports": [{"file", "opinion", "snippet"}]}
+    """
+    d = config.CACHE / "audit_orig"
+    d.mkdir(parents=True, exist_ok=True)
+    cf = d / f"{rcept_no}.json"
+    if cf.exists():
+        hit = _read_cache(cf)
+        if hit is not None:
+            return hit
+    if not config.DART_KEY:
+        raise DartError("DART_API_KEY 가 비어 있다")
+    global CALLS
+    blob = _open(BASE + "document.xml?" + urllib.parse.urlencode({"crtfc_key": config.DART_KEY, "rcept_no": rcept_no}), timeout=90)
+    CALLS += 1
+    time.sleep(SLEEP)
+    if blob[:2] != b"PK":
+        m = re.search(rb"<status>(\d+)</status>", blob)
+        status = m.group(1).decode() if m else "?"
+        if status == "020":
+            raise QuotaExceeded("일일 호출 한도 초과 (document)")
+        out = {"reports": [], "status": status}
+    else:
+        reps = []
+        with zipfile.ZipFile(io.BytesIO(blob)) as z:
+            for n in z.namelist():
+                t = _clean_html(z.read(n))
+                i = t.find("감사보고서")
+                if i < 0 or "감사의견" not in t[i:i + 20000]:
+                    continue
+                if n.rstrip("/").split("/")[-1].count("_") == 0:   # 본문(사업보고서) 파일은 목차·요약이라 뺀다
+                    continue
+                body = t[i:i + 20000]
+                reps.append({"file": n, "opinion": classify_audit_report(body), "snippet": body[:12000]})
+        out = {"reports": reps, "status": "000"}
+    _write_cache(cf, out)
+    return out
