@@ -156,6 +156,11 @@ def sentence(name, v, ref, contrib):
 def shap_values(model, X, background=None):
     """HistGB 는 TreeExplainer, 로지스틱은 선형 기여도로 계산한다."""
     import shap
+    # v2.2: 로지스틱 Pipeline(중앙값 대치 → 표준화 → 로지스틱). 학습 구간 기준 표준화라 학습 평균이 0 이므로
+    # 선형 SHAP(로그 오즈) = 계수 × 표준화 값 — 정확한 값이다. 부분 표본의 평균을 배경으로 쓰면 안 된다.
+    if hasattr(model, "steps") and hasattr(model.steps[-1][1], "coef_") and "scale" in dict(model.steps):
+        Z = model[:-1].transform(X)
+        return np.asarray(Z) * model.steps[-1][1].coef_[0]
     # 2차 랜덤포레스트는 Pipeline(중앙값 대치 → 숲). 입력이 이미 대치된 값이면 대치 단계는 아무것도 하지 않으므로
     # 숲만 꺼내 TreeExplainer 에 넣는다. 표준화가 있는 로지스틱 Pipeline 은 그대로 둔다(선형 설명으로 간다).
     if hasattr(model, "steps") and [n for n, _ in model.steps[:-1]] == ["impute"] and not X.isna().any().any():
