@@ -14,7 +14,7 @@ import pandas as pd
 from hup import config, dataset, explain, features, model, pipeline
 
 assert config.VERSION.startswith("v2")
-b = joblib.load(config.PROCESSED / "v2_final_model.joblib")
+b = joblib.load(config.RESULTS / "freeze" / "모델.joblib")      # 동결본
 sel = json.loads((config.RESULTS / "selection" / "선택결과.json").read_text())
 ev_res = json.loads((config.RESULTS / "final" / "평가결과.json").read_text())
 use, cfg = b["use"], b["config"]
@@ -30,8 +30,8 @@ assert pipeline._with_flags(clean, fin) == use
 ref = tr[use].median()
 train_raw = raw.loc[tr.index]
 est = b["model"]
-print("안정 변수 계산 (랜덤포레스트 시드 5개)…", flush=True)
-allow = explain.stable_features(lambda random_state: model.candidate("랜덤포레스트", random_state=random_state, **cfg),
+print(f"안정 변수 계산 ({b['chosen']} 시드 5개)…", flush=True)
+allow = explain.stable_features(lambda random_state: model.candidate(b["chosen"], random_state=random_state, **cfg),
                                 tr[use], tr["y"], top=len(use))
 print("안정 변수:", allow, flush=True)
 
@@ -164,7 +164,7 @@ local = {c["id"]: {"name": names.get(c["_key"], ""),
 for c in cards:
     del c["_key"]
 fr = ev_res["결과"]["관측 기간 내 첫 부실 (주 분석)"]
-meta = {"판": "v2", "모델": f"랜덤포레스트 (max_depth {cfg['max_depth']}, min_samples_leaf {cfg['min_samples_leaf']}) — 검증 구간에서 사전 규칙으로 선택",
+meta = {"판": config.VERSION, "모델": f"{b['chosen']} ({', '.join(f'{k} {v}' for k, v in cfg.items())}) — 검증 구간에서 사전 규칙으로 선택",
         "구간": "평가 구간 T 2024~2025 (2차 수정 후 재평가를 1회 마친 구간)", "선정": "집단별 위험 상위 10%",
         "데이터": "최초 공시 원본 XBRL 재무 (기준시점에 실제로 공개된 값)", "카드수": len(cards),
         "성능": {"첫부실_PR_AUC": round(fr["PR-AUC"], 3), "CI": fr["PR-AUC_95CI"], "기준선배": round(fr["PR-AUC"] / fr["기준선"], 1),

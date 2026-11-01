@@ -28,7 +28,9 @@ tr, va = s["train"], s["valid"]
 ref = tr[use].median()
 score = pd.Series(est.predict_proba(va[use])[:, 1], index=va.index)
 first = va["과거사건"] == 0
-rec = {"커밋": exp.git("rev-parse", "--short", "HEAD"), "모델": "동결 랜덤포레스트 (results/v2/freeze/모델.joblib)", "구간": "검증 T 2022~2023"}
+name_m = b["chosen"]
+extra = {"n_jobs": 1} if name_m == "랜덤포레스트" else {}      # 숲만 병렬 합산 흔들림을 막는다
+rec = {"커밋": exp.git("rev-parse", "--short", "HEAD"), "판": config.VERSION, "모델": f"동결 {name_m} ({config.RESULTS.name}/freeze/모델.joblib)", "구간": "검증 T 2022~2023"}
 
 # ---- W11-1 삭제 검사
 print("[W11-1] 삭제 검사", flush=True)
@@ -61,7 +63,7 @@ print(w111.to_string(index=False), flush=True)
 
 # ---- W11-2 사실 단정 · 보류
 print("[W11-2] 사실 단정 · 보류 (안정 변수 계산 중)", flush=True)
-allow = explain.stable_features(lambda random_state: model.candidate("랜덤포레스트", random_state=random_state, **cfg),
+allow = explain.stable_features(lambda random_state: model.candidate(name_m, random_state=random_state, **cfg),
                                 tr[use], tr["y"], top=len(use))
 rows, reasons = [], []
 for name, mask in (("첫 부실", first), ("부실 이력 있음", ~first)):
@@ -148,10 +150,10 @@ def with_sig(frame):
 
 
 Xtr, Xva = with_sig(tr), with_sig(va)
-base_re = model.candidate("랜덤포레스트", n_jobs=1, **cfg).fit(tr[use], tr["y"])
+base_re = model.candidate(name_m, **extra, **cfg).fit(tr[use], tr["y"])
 p_base = est.predict_proba(va[use])[:, 1]
 assert np.allclose(base_re.predict_proba(va[use])[:, 1], p_base), "동결 설정 재학습이 동결 모델과 다르다"
-m_sig = model.candidate("랜덤포레스트", n_jobs=1, **cfg).fit(Xtr, tr["y"])
+m_sig = model.candidate(name_m, **extra, **cfg).fit(Xtr, tr["y"])
 p_sig = m_sig.predict_proba(Xva)[:, 1]
 fm = first.to_numpy()
 yv, gv = va["y"].to_numpy(), va["corp_code"].to_numpy()
