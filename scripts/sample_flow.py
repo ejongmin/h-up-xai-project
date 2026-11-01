@@ -8,6 +8,10 @@ v1 = pd.read_csv(config.DATA / "processed" / "dataset.csv", dtype={"corp_code": 
 v2 = pd.read_csv(config.PROCESSED / "dataset.csv", dtype={"corp_code": str}, parse_dates=["rcept_dt"])
 ff = dart.first_filings()
 unc = pd.read_csv(config.RESULTS / "data_check" / "시점확인불가.csv", dtype={"corp_code": str})
+nd_f = config.RESULTS / "data_check" / "비12월_제외.csv"
+nondec = pd.read_csv(nd_f, dtype={"corp_code": str}) if nd_f.exists() and nd_f.stat().st_size > 2 else pd.DataFrame(columns=["corp_code", "bsns_year"])
+uk = set(zip(unc.corp_code, unc.bsns_year.astype(int))) if len(unc) else set()
+nk = set(zip(nondec.corp_code, nondec.bsns_year.astype(int)))
 has = v1.apply(lambda r: xbrl.fetch(ff[(r.corp_code, r.bsns_year)][0]) is not None, axis=1)
 key1, key2 = set(zip(v1.corp_code, v1.bsns_year)), set(zip(v2.corp_code, v2.bsns_year))
 new = v2[[t not in key1 for t in zip(v2.corp_code, v2.bsns_year)]]
@@ -22,7 +26,8 @@ rows = [
     ("1차 데이터셋", len(v1), int(v1.y.sum()), ""),
     ("  원본 XBRL 없음", int((~has).sum()), int(v1[~has].y.sum()), "주 분석 제외"),
     ("  원본 확보", int(has.sum()), int(v1[has].y.sum()), ""),
-    ("    그중 최초 공개 자료 확인 불가(재등록 파일)", len(gone), int(gone.y.sum()), f"주 분석 제외 — {len(unc)}건 목록"),
+    ("    그중 최초 공개 자료 확인 불가(재등록 파일)", len(unc), int(gone[[k in uk for k in zip(gone.corp_code, gone.bsns_year)]].y.sum()), "주 분석 제외"),
+    ("    그중 최초 보고서가 12월 결산이 아님 (v2.2~)", sum(k in nk for k in zip(gone.corp_code, gone.bsns_year)), int(gone[[k in nk for k in zip(gone.corp_code, gone.bsns_year)]].y.sum()), f"패널 제외 (전체 {len(nondec)}행 중 1차에 있던 행)"),
     ("    1차·2차 모두 있는 행", len(both), int(both.y_2.sum()), f"라벨 일치 {float((both.y_1 == both.y_2).mean()):.1%}"),
     ("  2차에만 있는 행", len(new), int(new.y.sum()), f"1차 API 재무 응답이 비어 빠졌던 행 {api_empty}건"),
     ("2차 데이터셋", len(v2), int(v2.y.sum()), "= 양쪽 모두 + 2차에만"),

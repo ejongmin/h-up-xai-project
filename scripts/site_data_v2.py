@@ -199,10 +199,10 @@ for c in cards:
 cards.sort(key=lambda c: (c["group"], ["상위 1% 이내", "상위 1~3%", "상위 3~5%", "상위 5~10%", "상위 10% 밖"].index(c["rank_band"]), c["id"]))
 fr = ev_res["결과"]["관측 기간 내 첫 부실 (주 분석)"]
 meta = {"판": config.VERSION, "모델": f"{b['chosen']} ({', '.join(f'{k} {v}' for k, v in cfg.items())}) — 검증 구간에서 사전 규칙으로 선택",
-        "구간": "평가 구간 T 2024~2025 (v2.1 수정 후 재평가를 마친 구간 — 독립 검증 아님)", "선정": "집단별 위험 상위 10%",
+        "구간": f"평가 구간 T 2024~2025 ({config.VERSION} 수정 후 재평가를 마친 구간 — 독립 검증 아님)", "선정": "집단별 위험 상위 10%",
         "데이터": "최초 공시 원본 XBRL 재무 (기준시점에 실제로 공개된 값)", "카드수": len(cards),
         "성능": {"첫부실_PR_AUC": round(fr["PR-AUC"], 3), "CI": fr["PR-AUC_95CI"], "기준선배": round(fr["PR-AUC"] / fr["기준선"], 1),
-                 "경보": fr["경보 (검증에서 정한 임계값 그대로)"]},
+                 "경보": fr.get("경보 (검증에서 정한 임계값 그대로)")},       # 검증에서 임계값을 정하지 못했으면 없음
         "demo": {"통과": demo.get("통과"), "교정": demo.get("교정"), "보류": demo.get("보류")}}
 d = config.ROOT / "site" / "data"
 d.mkdir(parents=True, exist_ok=True)
