@@ -138,7 +138,7 @@ def build(mask, group):
             "filed": T.strftime("%Y년 %m월"), "window_end": (T + pd.Timedelta(config.HORIZON_DAYS, "D")).strftime("%Y년 %m월"),
             "basis": "연결" if row.get("재무제표기준") == "CFS" else "별도",
             "rank": r_i, "n_group": len(order), "rank_pct": round(100 * r_i / len(order), 1),
-            "alert": bool(score[ix] >= sel["경보 임계값 (검증 첫 부실, 정밀도 30% 이상인 가장 낮은 점수)"]),
+            "alert": (lambda t: bool(score[ix] >= t) if t is not None else False)(sel["경보 임계값 (검증 첫 부실, 정밀도 30% 이상인 가장 낮은 점수)"]),
             "status": "보류" if why else ("교정" if fixed else "통과"), "hold": why, "wiped": bool(wiped), "fixed": fixed,
             "up": [factor(row, n, c) for n, c in up.items()] if not why else [],
             "down": [factor(row, n, c) for n, c in down.items()] if not why else [],

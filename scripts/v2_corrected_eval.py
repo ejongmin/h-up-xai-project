@@ -42,7 +42,7 @@ pc = b["calibrated"].predict_proba(te[use])[:, 1]
 def block(mask):
     y, g = te["y"].to_numpy()[mask], te["corp_code"].to_numpy()[mask]
     r = model.evaluate(y, p[mask], groups=g)
-    f = p[mask] >= thr
+    f = (p[mask] >= thr) if thr is not None else np.zeros(int(mask.sum()), bool)     # 경보 임계값이 없으면 경보 0
     tp = int((f & (y == 1)).sum())
     return {"n": int(mask.sum()), "사건": int(y.sum()), "기준선": float(y.mean()), "PR-AUC": float(r["PR-AUC"]),
             "PR-AUC_95CI": list(r["PR-AUC_95CI"]), "ROC-AUC": float(r["ROC-AUC"]), "Brier (보정 확률)": float(np.mean((pc[mask] - y) ** 2)),

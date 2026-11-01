@@ -73,7 +73,8 @@ same = {}
 for part in ("valid", "test"):
     X_ = clean[part][b["use"]]
     p0, p1 = b0["model"].predict_proba(X_)[:, 1], b2["model"].predict_proba(X_)[:, 1]
-    same[part] = {"최대 차이": float(np.abs(p0 - p1).max()), "임계값을 넘나든 행": int(((p0 >= thr0) != (p1 >= thr0)).sum())}
+    same[part] = {"최대 차이": float(np.abs(p0 - p1).max()),
+                  "임계값을 넘나든 행": None if thr0 is None else int(((p0 >= thr0) != (p1 >= thr0)).sum())}
 spec = {
     "동결": git("log", "-1", "--format=%cs"), "커밋": git("rev-parse", "HEAD"),
     "성격": "2차 최종 모델·평가 절차. 독립 평가는 이 명세의 파일과 규칙으로만 한다 (docs/15 §6).",
