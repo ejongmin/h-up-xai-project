@@ -16,6 +16,7 @@ from hup import config, dataset, features, pipeline
 
 assert config.VERSION.startswith("v2")
 ROOT, OUT = config.ROOT, config.RESULTS / "freeze"
+REL = OUT.relative_to(ROOT).as_posix()            # results/v2_1/freeze 등 — 판마다 다른 경로
 git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 if git("status", "--porcelain", "--", "src", "scripts", "docs", "tests"):
@@ -67,10 +68,10 @@ spec = {
              "주의": "joblib 은 scikit-learn 판에 묶인다 — 같은 판에서 불러올 것"},
     "학습 데이터": {"dataset.csv sha256": sha(config.PROCESSED / "dataset.csv"), "MANIFEST": json.loads((config.PROCESSED / "MANIFEST.json").read_text()),
                 "학습 표본": {"n": len(s["train"]), "사건": int(s["train"]["y"].sum()), "규칙": "T 2016~2021 중 T+400일 < 2022-01-01 (엠바고), 검토필요=0"}},
-    "전처리": {"파일": "results/v2/freeze/전처리기준.json", "sha256": sha(OUT / "전처리기준.json"),
+    "전처리": {"파일": f"{REL}/전처리기준.json", "sha256": sha(OUT / "전처리기준.json"),
                "규칙": "학습 구간 1·99% 윈저라이즈(이진 제외) → 중앙값 대치 → 결측 더미 (dataset.fit_clean/apply_clean)"},
     "변수": b["use"],
-    "모델": {"이름": b["chosen"], "설정": b["config"], "파일": "results/v2/freeze/모델.joblib", "sha256": sha(OUT / "모델.joblib"),
+    "모델": {"이름": b["chosen"], "설정": b["config"], "파일": f"{REL}/모델.joblib", "sha256": sha(OUT / "모델.joblib"),
              "선택 때 원본 sha256(16)": sel["모델 파일 sha256(16)"], "확률 보정": "같은 묶음의 calibrated (isotonic 5겹, 같은 학습 표본) — 첫 부실 집단에서 보정 불량(§6-1), 표시하지 않는다"},
     "경보 임계값": {"값": sel["경보 임계값 (검증 첫 부실, 정밀도 30% 이상인 가장 낮은 점수)"], "점수": "model.predict_proba[:,1] (비보정)",
                 "정한 곳": "검증 구간 첫 부실, 정밀도 30% 이상인 가장 낮은 점수"},
@@ -79,12 +80,12 @@ spec = {
                 "과거사건": "T 시점까지 관측된 첫 사건일 ≤ T", "재학습·재선택·임계값 조정 금지": True},
     "독립 평가": {"대상": "T 가 2026년 이후인 행 (개발에 쓰지 않음)", "행": len(ind), "첫 부실 대상": int((ind["과거사건"] == 0).sum()),
                 "대상 목록 sha256": sha(config.PROCESSED / "독립평가_대상.csv"),
-                "관측 완료일": "행마다 T + 400일. 공개가 늦은 공시는 완료도 늦다 (results/v2/freeze/독립평가_관측완료월.csv)",
+                "관측 완료일": f"행마다 T + 400일. 공개가 늦은 공시는 완료도 늦다 ({REL}/독립평가_관측완료월.csv)",
                 "가장 이른 완료": str(ind["관측완료일"].min().date()), "가장 늦은 완료": str(ind["관측완료일"].max().date()),
                 "평가 시점 규칙": "평가일 기준 관측 완료된 행만 포함하고, 사건 목록을 그 완료일 이후에 다시 수집한 뒤 평가한다. 미완료 행은 수를 보고하고 제외한다."},
     "코드 파일 sha256": {f: sha(ROOT / f) for f in files},
-    "선택 결과": {"파일": "results/v2/selection/선택결과.json", "sha256": sha(config.RESULTS / "selection" / "선택결과.json")},
-    "수정 후 재평가": {"파일": "results/v2/final/평가결과.json", "sha256": sha(config.RESULTS / "final" / "평가결과.json")},
+    "선택 결과": {"파일": f"{config.RESULTS.relative_to(ROOT).as_posix()}/selection/선택결과.json", "sha256": sha(config.RESULTS / "selection" / "선택결과.json")},
+    "수정 후 재평가": {"파일": f"{config.RESULTS.relative_to(ROOT).as_posix()}/final/평가결과.json", "sha256": sha(config.RESULTS / "final" / "평가결과.json")},
 }
 (OUT / "동결명세.json").write_text(json.dumps(spec, ensure_ascii=False, indent=2, default=float))
 print(json.dumps({k: spec[k] for k in ("커밋", "모델", "독립 평가")}, ensure_ascii=False, indent=1))
