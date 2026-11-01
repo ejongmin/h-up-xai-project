@@ -13,7 +13,7 @@ import pandas as pd
 from . import config
 
 NO_SOURCE = []          # 원본 XBRL 이 없어 패널에서 빠진 행 (pipeline.panel 이 채운다)
-TIME_UNCONFIRMED = []   # 접수번호가 목록 접수일보다 이틀 이상 늦어 최초 공개 자료인지 확인할 수 없는 행 — 주 분석 제외
+TIME_UNCONFIRMED = []   # 접수번호 날짜가 목록 접수일보다 늦고 원문 확인 목록에 없어 최초 공개 자료인지 확인할 수 없는 행 — 주 분석 제외
 
 
 class GateError(RuntimeError):
@@ -48,13 +48,21 @@ def review_flags(df):
     if "_unit_unconfirmed" in df:
         add(df["_unit_unconfirmed"].fillna(0) == 1, "자산 수백 배 변동, 같은 보고서 전기값이 확인 안 함")
     if "_assets_prev" in df:
-        # 이번 보고서의 전기값 ÷ 전년 보고서의 당기값이 10ᵏ 근처면 어느 한쪽 단위가 틀렸다
+        # 이번 보고서의 전기값 ÷ 전년 보고서의 당기값이 10ᵏ 근처면 어느 한쪽 단위가 틀렸다.
+        # v2.1: 단위 보정 전 원본 값끼리 비교하고, 단위 보정(fix_units)이 이미 고친 행(올해·전년)은 걸지 않는다 — 고친 47행을 잘못 빼고 있었다
+        raw = df["_assets_raw"] if "_assets_raw" in df else df["_assets"]
+        fixed = (df["_assets"] != raw) & df["_assets"].notna()
         g = df.sort_values(["corp_code", "bsns_year"]).groupby("corp_code")
-        prev_own = g["_assets"].shift(1).reindex(df.index)
+        prev_own = g["_assets_raw" if "_assets_raw" in df else "_assets"].shift(1).reindex(df.index)
+        order = df.sort_values(["corp_code", "bsns_year"]).index
+        prev_fixed = fixed.loc[order].groupby(df.loc[order, "corp_code"]).shift(1).fillna(False).astype(bool).reindex(df.index)
         consec = (df["bsns_year"] - g["bsns_year"].shift(1).reindex(df.index)) == 1
         ratio = df["_assets_prev"] / prev_own
         k = np.log10(ratio.where(ratio > 0)).round()
-        add(consec & k.abs().isin([3, 6]), "전기값과 전년 보고서 값이 10³·10⁶ 배 차이")
+        add(consec & k.abs().isin([3, 6]) & ~fixed & ~prev_fixed, "전기값과 전년 보고서 값이 10³·10⁶ 배 차이 (단위 보정으로 고치지 못함)")
+    if "_통화" in df:       # v2.1: 원화가 아닌 통화로 낸 공시 — 금액(규모·증가율)을 원화로 볼 수 없다
+        c = df["_통화"].fillna("").astype(str)
+        add((c != "") & (c != "KRW"), "통화 단위가 원화가 아님")
     return r
 
 

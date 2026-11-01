@@ -6,7 +6,7 @@ import pandas as pd
 from hup import config, dart, features, xbrl
 
 v1 = pd.read_csv(config.DATA / "processed" / "dataset.csv", dtype={"corp_code": str})
-v2 = pd.read_csv(config.DATA / "processed_v2" / "dataset.csv", dtype={"corp_code": str})
+v2 = pd.read_csv(config.PROCESSED / "dataset.csv", dtype={"corp_code": str})
 m = v1.merge(v2, on=["corp_code", "bsns_year"], suffixes=("_1", "_2"))
 ff = dart.first_filings()
 
@@ -47,7 +47,7 @@ for var, (acc, words) in plan.items():
         out.append({"corp_code": r.corp_code, "bsns_year": int(r.bsns_year), "2차_경로": how, "2차_계정코드": aid, "2차_라벨": nm,
                     "2차_값": val, "1차_해당계정값": a1[acc], "1차_영업이익": a1["op_income"],
                     "1차_비슷한계정": api_names(api, words), "1차_재무기준": r["재무제표기준_1"], "2차_재무기준": r["재무제표기준_2"]})
-    d = config.ROOT / "results" / "v2" / "data_check"
+    d = config.RESULTS / "data_check"
     pd.DataFrame(out).to_csv(d / f"계정검산_{var}.csv", index=False, encoding="utf-8-sig")
     print(f"== {var}: 1차 결측·2차 값 {len(new)}행 중 {len(s)}행 표본")
     for k, v in paths.most_common():

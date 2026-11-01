@@ -5,7 +5,7 @@ import pandas as pd
 from hup import config, features
 
 v1 = pd.read_csv(config.DATA / "processed" / "dataset.csv", dtype={"corp_code": str})
-v2 = pd.read_csv(config.DATA / "processed_v2" / "dataset.csv", dtype={"corp_code": str})
+v2 = pd.read_csv(config.PROCESSED / "dataset.csv", dtype={"corp_code": str})
 k = ["corp_code", "bsns_year"]
 m = v1.merge(v2, on=k, how="outer", suffixes=("_1", "_2"), indicator=True)
 print("행 대응:", m["_merge"].value_counts().to_dict())
@@ -21,7 +21,7 @@ for c in cols:
         rows.append({"변수": c, "집단": name, "둘다값": int(h.sum()), "일치율": round(float(same.loc[g].sum() / max(h.sum(), 1)), 4),
                      "1차만결측": int((a.loc[g].isna() & b.loc[g].notna()).sum()), "2차만결측": int((a.loc[g].notna() & b.loc[g].isna()).sum())})
 t = pd.DataFrame(rows)
-out = config.ROOT / "results" / "v2" / "data_check"
+out = config.RESULTS / "data_check"
 out.mkdir(parents=True, exist_ok=True)
 t.to_csv(out / "v1_v2_대조.csv", index=False, encoding="utf-8-sig")
 print(t.pivot(index="변수", columns="집단", values="일치율").to_string())

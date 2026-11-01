@@ -5,9 +5,9 @@ from hup import config, dart, xbrl
 
 k = ["corp_code", "bsns_year"]
 v1 = pd.read_csv(config.DATA / "processed" / "dataset.csv", dtype={"corp_code": str}, parse_dates=["rcept_dt"])
-v2 = pd.read_csv(config.DATA / "processed_v2" / "dataset.csv", dtype={"corp_code": str}, parse_dates=["rcept_dt"])
+v2 = pd.read_csv(config.PROCESSED / "dataset.csv", dtype={"corp_code": str}, parse_dates=["rcept_dt"])
 ff = dart.first_filings()
-unc = pd.read_csv(config.ROOT / "results" / "v2" / "data_check" / "시점확인불가.csv", dtype={"corp_code": str})
+unc = pd.read_csv(config.RESULTS / "data_check" / "시점확인불가.csv", dtype={"corp_code": str})
 has = v1.apply(lambda r: xbrl.fetch(ff[(r.corp_code, r.bsns_year)][0]) is not None, axis=1)
 key1, key2 = set(zip(v1.corp_code, v1.bsns_year)), set(zip(v2.corp_code, v2.bsns_year))
 new = v2[[t not in key1 for t in zip(v2.corp_code, v2.bsns_year)]]
@@ -37,5 +37,5 @@ rows.append((f"  분할 앞 (T ~{config.SPLIT['train'][0] - 1})", len(pre), int(
 rest = use[yr > config.SPLIT["test"][1]]
 rows.append((f"  분할 밖 (T {config.SPLIT['test'][1] + 1}~)", len(rest), int(rest.y.sum()), "독립 평가 후보 — 결과 관측 미완료 (docs/15 §6)"))
 t = pd.DataFrame(rows, columns=["단계", "행", "사건", "비고"])
-t.to_csv(config.ROOT / "results" / "v2" / "data_check" / "표본흐름.csv", index=False, encoding="utf-8-sig")
+t.to_csv(config.RESULTS / "data_check" / "표본흐름.csv", index=False, encoding="utf-8-sig")
 print(t.to_string(index=False))

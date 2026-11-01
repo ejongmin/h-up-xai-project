@@ -17,13 +17,14 @@ RESULTS = ROOT / "results"
 # 연구 판 (docs/15). v1 = 1차 탐색 연구(최신 정정본 재무, 태그 v1-exploratory) — 결과를 덮어쓰지 않도록 그대로 둔다.
 # v2 = 최초 공시 원문(XBRL) 재무 + 데이터 검사 관문. 산출물 경로를 따로 쓴다.
 VERSION = os.environ.get("HUP_VERSION", "v1")
-FIN_SOURCE = "xbrl" if VERSION == "v2" else "api"
+# v2.1 = v2 에서 추출 오류를 고친 판 (docs/15 §10). v2 산출물은 무효 기록으로 그대로 둔다.
+FIN_SOURCE = "xbrl" if VERSION.startswith("v2") else "api"
 # 접수번호 날짜가 목록 접수일보다 늦지만 원문으로 최초 공개 자료임을 확인한 사례 (corp_code, 사업연도, 접수번호). docs/15 §3-1
 # 2026-10-31: 그 사업연도 유일한 최초 사업보고서가 자정을 넘겨 번호를 받은 1건. 새 사례는 확인 후에만 추가한다.
 FIRST_FILING_CONFIRMED = {("00126089", 2024, "20250401000004")}
-if VERSION == "v2":
-    PROCESSED = DATA / "processed_v2"
-    RESULTS = ROOT / "results" / "v2"
+if VERSION.startswith("v2"):
+    PROCESSED = DATA / f"processed_{VERSION.replace('.', '_')}"
+    RESULTS = ROOT / "results" / VERSION.replace(".", "_")
 
 DART_KEY = os.environ.get("DART_API_KEY", "")
 

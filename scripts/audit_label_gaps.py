@@ -4,7 +4,7 @@
 import pandas as pd
 from hup import config, dart, labels
 
-assert config.VERSION == "v2"
+assert config.VERSION.startswith("v2")
 df = pd.read_csv(config.PROCESSED / "dataset.csv", dtype={"corp_code": str}, parse_dates=["rcept_dt"])
 corps = set(df.corp_code)
 reports = {}                      # corp → [(접수일, 접수번호, 사업연도)]  최초 공시만 (정정·첨부 제외)

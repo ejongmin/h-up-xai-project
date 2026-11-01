@@ -44,11 +44,13 @@ def panel(corp_codes=None, years=None):
                 if blob is None:
                     out.append({"corp_code": cc, "bsns_year": int(y), "rcept_dt": info.get("rcept_dt"), "_원본없음": 1})
                     continue
-                rows, fsdiv = xbrl.pick(xbrl.parse(blob, int(y))[0])
+                by_fs, xmeta = xbrl.parse(blob, int(y))
+                rows, fsdiv = xbrl.pick(by_fs)
                 for r in rows:
                     r["rcept_no"] = rc[0]
             else:
                 rows, fsdiv = dart.financials(cc, int(y))
+                xmeta = {}
             if not rows:
                 continue
             # 기준시점은 최초 접수일. 재무제표 응답의 rcept_no 는 정정본일 수 있다.
@@ -80,7 +82,8 @@ def panel(corp_codes=None, years=None):
                      _revenue=a["revenue"], _assets=a["assets"],
                      _assets_prev=features.extract(rows, "frmtrm_amount")["assets"],
                      # API 는 최신 정정본을 준다. 데이터의 실제 접수일이 T 보다 늦으면 T 이후 정보일 수 있다 (docs/13 §8-3)
-                     _data_rcept=data_dt)
+                     _data_rcept=data_dt,
+                     _통화=",".join(xmeta.get("통화", [])))
             out.append(r)
     df = pd.DataFrame(out)
     if "_원본없음" in df:       # 원본 XBRL 이 없는 행은 패널에서 빼고 검사 보고서에 수를 남긴다 (docs/15 §3-3)
@@ -88,6 +91,7 @@ def panel(corp_codes=None, years=None):
         df = df[df["_원본없음"] != 1].drop(columns="_원본없음")
     df["rcept_dt"] = pd.to_datetime(df["rcept_dt"], format="%Y%m%d", errors="coerce")
     df["정정본재무"] = (pd.to_datetime(df["_data_rcept"], format="%Y%m%d", errors="coerce") > df["rcept_dt"]).astype(int)
+    df["_assets_raw"] = df["_assets"]          # 단위 보정 전 값 — 검사 관문의 전기값 대조용 (v2.1)
     df, fixes = features.fix_units(df.dropna(subset=["rcept_dt"]))
     out_ = config.RESULTS / "data_fix"; out_.mkdir(parents=True, exist_ok=True)
     fixes.to_csv(out_ / "단위수정_내역.csv", index=False, encoding="utf-8-sig")
@@ -124,7 +128,7 @@ def build(horizon=None, include_secondary=False):
 
     df = dataset.attach_labels(kept, ev, horizon)
     df = dataset.mark_prior_events(df, ev)
-    if config.VERSION == "v2":
+    if config.VERSION.startswith("v2"):
         df = checks.gate(df, ev, horizon)          # 검사를 통과해야 저장·학습된다 (docs/15 §4)
     config.PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_csv(config.PROCESSED / "dataset.csv", index=False)

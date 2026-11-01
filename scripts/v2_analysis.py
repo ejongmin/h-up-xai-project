@@ -38,18 +38,23 @@ for name, mask in (("검증 첫 부실 (주)", first), ("검증 전체 (보조)"
     p0 = est.predict_proba(X)[:, 1]
     top = np.argsort(-p0)[:300]
     sv = explain.shap_values(est, X.iloc[top])
-    rng = np.random.default_rng(0)
+    # v2.1 (docs/15 §10): 결측 표시 열은 대부분 이미 중앙값(0)이라 바꿔도 값이 그대로다 — 무작위 비교군을 희석해 배수를 부풀렸다.
+    # 주 비교 = 결측 표시를 뺀 열에서 무작위. 사전 고정했던 '전체 열 무작위'도 함께 적는다.
+    nonflag = [i for i, c in enumerate(use) if not c.endswith("_결측")]
     for k in (1, 2, 3, 5, 8, 12):
         drop = {}
-        for mode in ("SHAP상위", "무작위"):
+        for mode, pool in (("SHAP상위", None), ("무작위(결측 표시 제외)", nonflag), ("무작위(전체 열, 사전 고정)", list(range(len(use))))):
+            rng = np.random.default_rng(0)
             Z = X.iloc[top].copy()
             for j in range(len(top)):
-                cols = np.argsort(-sv[j])[:k] if mode == "SHAP상위" else rng.choice(len(use), k, replace=False)
+                cols = np.argsort(-sv[j])[:k] if pool is None else rng.choice(pool, k, replace=False)
                 for c in cols:
                     Z.iat[j, c] = ref[use[c]]
             drop[mode] = float(np.mean(p0[top] - est.predict_proba(Z)[:, 1]))
-        rows.append({"대상": name, "k": k, "SHAP상위 하락": round(drop["SHAP상위"], 4), "무작위 하락": round(drop["무작위"], 4),
-                     "배수": round(drop["SHAP상위"] / drop["무작위"], 1) if drop["무작위"] > 0 else None})
+        a, r1, r2 = drop["SHAP상위"], drop["무작위(결측 표시 제외)"], drop["무작위(전체 열, 사전 고정)"]
+        rows.append({"대상": name, "k": k, "SHAP상위 하락": round(a, 4), "무작위 하락(결측 표시 제외)": round(r1, 4),
+                     "배수(주)": round(a / r1, 1) if r1 > 0 else None,
+                     "무작위 하락(전체 열)": round(r2, 4), "배수(전체 열)": round(a / r2, 1) if r2 > 0 else None})
 w111 = pd.DataFrame(rows)
 w111.to_csv(OUT / "W11_삭제검사.csv", index=False, encoding="utf-8-sig")
 print(w111.to_string(index=False), flush=True)
@@ -120,12 +125,15 @@ for cc, y in keys:
                 "강조사항있음": float(emph.strip() not in ("", "-", "해당사항 없음", "해당사항없음")), "감사인교체": chg})
 sig = pd.DataFrame(sig).sort_values(["corp_code", "bsns_year"])
 lagcols = []
-for c in ("계속기업불확실성", "강조사항있음", "감사인교체"):
-    sig[f"전기_{c}"] = sig.groupby("corp_code")[c].shift(1)
-    lagcols.append(f"전기_{c}")
+# 전기 값은 사업연도가 바로 앞일 때만 (v2.1 — 공백 연도면 결측; shift 는 t−2 를 끌어왔다)
+prev = sig.assign(bsns_year=sig["bsns_year"] + 1).rename(columns={c: f"전기_{c}" for c in ("계속기업불확실성", "강조사항있음", "감사인교체")})
+sig = sig.merge(prev, on=["corp_code", "bsns_year"], how="left")
+lagcols = ["전기_계속기업불확실성", "전기_강조사항있음", "전기_감사인교체"]
 sigtab = []
-d = df.merge(sig, on=["corp_code", "bsns_year"], how="left")
-for c in ("계속기업불확실성", "강조사항있음", "감사인교체", "제출기한연장"):
+# 신호 비율 표는 개발 자료(학습 구간 전체 + 검증 구간)만 — 평가 구간·2026 행을 섞지 않는다 (v2.1)
+dev = pd.concat([s["train_full"], va])
+d = dev[["corp_code", "bsns_year", "y", "제출기한연장"]].merge(sig, on=["corp_code", "bsns_year"], how="left")
+for c in lagcols + ["제출기한연장"]:
     on, off = d.loc[d[c] == 1, "y"].mean(), d.loc[d[c] == 0, "y"].mean()
     sigtab.append({"신호": c, "사건군 비율": round(d.loc[d.y == 1, c].mean(), 4), "정상군 비율": round(d.loc[d.y == 0, c].mean(), 4),
                    "신호 있을 때 사건비율": round(on, 4), "없을 때": round(off, 4), "배수": round(on / off, 1) if off else None})

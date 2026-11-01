@@ -76,7 +76,10 @@ def _labels(z):
     """
     out = {}
     for n in z.namelist():
-        if not re.search(r"lab_[^/\\]*-ko", n):
+        # 2026-11-01 (v2.1): 2024 년 이후 파일은 'entity…_2023-12-31_lab-ko.xml' 형식이다. 옛 형식 'labels\\lab_…-ko_….xml' 만 찾다가
+        # 2024+ 공시의 라벨을 하나도 못 읽었다 — 평가 구간에서만 결측이 늘었다 (docs/15 §10)
+        base = n.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        if not (base.endswith(".xml") and "lab" in base and "-ko" in base):
             continue
         root = ET.fromstring(z.read(n))
         loc, lab, arcs = {}, {}, []
@@ -136,6 +139,9 @@ def parse(blob, fy):
     root = ET.fromstring(z.read(inst[0]))
     ctx = _contexts(root)
     names = _labels(z)
+    units = {u.get("id"): " ".join((m.text or "").strip() for m in u.iter() if m.tag.endswith("}measure"))
+             for u in root.iter() if u.tag.endswith("}unit")}
+    cur = set()
     vals = {}   # (fs, kind, account_id) → {'thstrm_amount': v, 'frmtrm_amount': v}
     for el in root:
         ref = el.get("contextRef")
@@ -153,15 +159,26 @@ def parse(blob, fy):
         if not re.fullmatch(r"-?\d+(\.\d+)?", txt):
             continue
         vals.setdefault((fs, kind, f"{pre}_{name}", names.get(name, "")), {}).setdefault(col, txt)
+        m = re.search(r"iso4217:([A-Z]{3})", units.get(el.get("unitRef"), ""))
+        if m:
+            cur.add(m.group(1))
     out = {}
     for (fs, kind, aid, nm), v in vals.items():
-        for sj in (("BS",) if kind == "I" else ("IS", "CF")):
+        # 현금흐름표 성격 계정은 손익 계정 후보에서 뺀다 (v2.1 — '이자비용' 라벨의 현금흐름 조정 항목이 금융원가로 잡혔다)
+        cf_only = any(k in aid for k in ("CashFlow", "Adjustments", "_CF_"))
+        for sj in (("BS",) if kind == "I" else ("CF",) if cf_only else ("IS", "CF")):
             out.setdefault(fs, []).append({"sj_div": sj, "account_id": aid, "account_nm": nm, **v})
-    return out, {"인스턴스": inst[0], "기준": sorted(out)}
+    return out, {"인스턴스": inst[0], "기준": sorted(out), "통화": sorted(cur)}
 
 
 def pick(by_fs):
     """연결 → 별도 → 축 없음 순 (1차의 CFS→OFS 폴백과 같은 원칙). 반환: (행, 기준)."""
+    # 자산총계가 있는 기준만 고른다 (v2.1 — 연결 블록에 자산총계가 없어 재무 변수 전체가 비던 행)
+    has = lambda rows: any(r["sj_div"] == "BS" and r.get("thstrm_amount") and
+                           (r["account_id"] == "ifrs-full_Assets" or r.get("account_nm", "").replace(" ", "") == "자산총계") for r in rows)
+    for fs in ("CFS", "OFS", "ND"):
+        if by_fs.get(fs) and has(by_fs[fs]):
+            return by_fs[fs], fs
     for fs in ("CFS", "OFS", "ND"):
         if by_fs.get(fs):
             return by_fs[fs], fs

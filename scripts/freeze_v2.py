@@ -14,7 +14,7 @@ import sklearn
 
 from hup import config, dataset, features, pipeline
 
-assert config.VERSION == "v2"
+assert config.VERSION.startswith("v2")
 ROOT, OUT = config.ROOT, config.RESULTS / "freeze"
 git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()

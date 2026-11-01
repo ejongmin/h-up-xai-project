@@ -531,16 +531,22 @@ def test_xbrl_reads_first_filing_values():
            + '<ifrs-full:Revenue contextRef="cD" unitRef="KRW" decimals="0">700</ifrs-full:Revenue>'
            + '<dart:OperatingIncomeLoss contextRef="qD" unitRef="KRW" decimals="0">-5</dart:OperatingIncomeLoss>'
            + '<entity1:CapitalX xmlns:entity1="http://dart.fss.or.kr/taxonomy/2020-06-30/entity00000001" contextRef="cI" unitRef="KRW" decimals="0">800</entity1:CapitalX>'
+           + '<dart:AdjustmentsForFinanceCosts contextRef="cD" unitRef="KRW" decimals="0">99</dart:AdjustmentsForFinanceCosts>'
+           + '<unit id="KRW"><measure>iso4217:KRW</measure></unit>'
            + '</xbrl>')
     lab = ('<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:labelLink>'
            '<link:loc xlink:href="e.xsd#entity00000001_CapitalX" xlink:label="L1"/>'
            '<link:label xlink:label="T1" xlink:role="http://www.xbrl.org/2003/role/label" xml:lang="ko">자본금</link:label>'
-           '<link:labelArc xlink:from="L1" xlink:to="T1"/></link:labelLink></link:linkbase>')
+           '<link:labelArc xlink:from="L1" xlink:to="T1"/>'
+           '<link:loc xlink:href="d.xsd#dart_AdjustmentsForFinanceCosts" xlink:label="L2"/>'
+           '<link:label xlink:label="T2" xlink:role="http://www.xbrl.org/2003/role/label" xml:lang="ko">금융원가</link:label>'
+           '<link:labelArc xlink:from="L2" xlink:to="T2"/></link:labelLink></link:linkbase>')
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("x_2020.xbrl", doc)
-        z.writestr("labels/lab_x-ko_2020.xml", lab)
-    by, _ = xbrl.parse(buf.getvalue(), 2020)
+        z.writestr("entity00000001_2020-12-31_lab-ko.xml", lab)      # 2024+ 파일 이름 형식 (v2.1)
+    by, meta = xbrl.parse(buf.getvalue(), 2020)
+    assert meta["통화"] == ["KRW"]
     rows, fs = xbrl.pick(by)
     assert fs == "CFS"
     a, p = features.extract(rows), features.extract(rows, "frmtrm_amount")
@@ -548,7 +554,10 @@ def test_xbrl_reads_first_filing_values():
     assert a["revenue"] == 700, "1년 기간 값"
     assert a["op_income"] is None, "분기 기간 값이 연간 값으로 들어오면 안 된다"
     assert a["equity"] is None, "자본 구성요소(세부 차원) 값이 자본총계로 들어오면 안 된다"
-    assert a["capital_stock"] == 800, "회사 확장 계정은 한글 라벨(자본금)로 찾는다"
+    assert a["capital_stock"] == 800, "회사 확장 계정은 한글 라벨(자본금)로 찾는다 — 새 라벨 파일 이름 형식에서도"
+    assert a["interest_exp"] is None, "현금흐름 조정 항목('금융원가' 라벨)이 손익의 금융원가로 들어오면 안 된다"
+    only_sep = {"CFS": [r for r in by["CFS"] if r["account_id"] != "ifrs-full_Assets"], "OFS": by["OFS"]}
+    assert xbrl.pick(only_sep)[1] == "OFS", "연결에 자산총계가 없으면 별도로 넘어간다"
 
 
 def test_gate_stops_on_timing_and_flags_units():
@@ -567,6 +576,12 @@ def test_gate_stops_on_timing_and_flags_units():
     late = df.assign(_data_rcept=["20200320", "20210501", "20210320"])
     assert checks.hard_failures(late, ev)["재무 공개일 > 기준시점 T"] == 1
     assert checks.basis_switch(df).tolist() == [False, True, False]
+    usd = df.assign(_통화=["KRW", "KRW", "USD"])
+    assert "원화" in checks.review_flags(usd)[2], "원화가 아닌 통화는 검토 대상"
+    # 단위 보정이 이미 고친 행은 전기값 불일치로 걸지 않는다 (v2.1)
+    fixed = pd.DataFrame({"corp_code": ["D", "D"], "bsns_year": [2019, 2020], "_assets": [5e10, 6e10],
+                          "_assets_raw": [5e13, 6e10], "_assets_prev": [np.nan, 5e10]})
+    assert checks.review_flags(fixed).tolist() == ["", ""]
     dup = pd.concat([ev, ev])
     import tempfile
     from hup import config

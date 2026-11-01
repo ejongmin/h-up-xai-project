@@ -18,7 +18,7 @@ from sklearn.metrics import average_precision_score
 
 from hup import config, dataset, explain, features, model, pipeline
 
-assert config.VERSION == "v2", "HUP_VERSION=v2 로 실행할 것"
+assert config.VERSION.startswith("v2"), "HUP_VERSION=v2.1 로 실행할 것"
 OUT = config.RESULTS / "selection"
 FINAL = config.RESULTS / "final"
 MODEL_FILE = config.PROCESSED / "v2_final_model.joblib"
@@ -68,8 +68,9 @@ def select():
                     warnings.simplefilter("always")
                     m = model.candidate(name, **cfg).fit(tr[use], tr["y"])
                     p = m.predict_proba(va[use])[:, 1]
+                ap = float(average_precision_score(yv, p[first]))
                 rec.update(상태="성공", 경고=len(w), 경고_예=str(w[0].message)[:120] if w else "",
-                           검증_첫부실_PR_AUC=round(float(average_precision_score(yv, p[first])), 5),
+                           검증_첫부실_PR_AUC=round(ap, 5), 검증_첫부실_PR_AUC_원값=ap,
                            검증_전체_PR_AUC=round(float(average_precision_score(va["y"], p)), 5))
                 preds[(name, i)] = (m, p)
             except Exception as e:                      # 실패도 그대로 남긴다 — 다른 설정으로 바꾸지 않는다 (§5-3)
@@ -83,7 +84,8 @@ def select():
     for name in ORDER:
         g = ok[ok["모델"] == name]
         if len(g):     # 같은 점수면 목록 앞 설정 (§5-3)
-            r = g.sort_values(["검증_첫부실_PR_AUC", "번호"], ascending=[False, True]).iloc[0]
+            # 같은 점수 판정은 원래 정밀도로 (v2.1 — 반올림 동점으로 HistGB 최고 설정이 바뀌었다)
+            r = g.sort_values(["검증_첫부실_PR_AUC_원값", "번호"], ascending=[False, True]).iloc[0]
             best[name] = int(r["번호"])
     if "로지스틱" not in best:
         sys.exit("기준 모델(로지스틱)이 20개 설정 모두 실패했다 — 결과표를 보고 원인을 기록할 것. 다른 설정으로 바꾸지 않는다")

@@ -20,11 +20,12 @@ ACCOUNTS = {
     "capital_stock": ("BS",  ["ifrs-full_IssuedCapital"], ["자본금"]),
     "cur_assets":    ("BS",  ["ifrs-full_CurrentAssets"], ["유동자산"]),
     "cur_liab":      ("BS",  ["ifrs-full_CurrentLiabilities"], ["유동부채"]),
-    "inventory":     ("BS",  ["ifrs-full_Inventories"], ["재고자산", "유동재고자산"]),
+    "inventory":     ("BS",  ["ifrs-full_Inventories", "ifrs-full_InventoriesTotal"], ["재고자산", "유동재고자산"]),
     # 매출채권은 두 코드로 갈린다. 유동 항목만 받고 장기매출채권은 제외한다.
+    # 2026-11-01 (v2.1): 2024+ 원본 XBRL 은 ifrs-full_CurrentTradeReceivables('유동매출채권')로 적는다
     "receivable":    ("BS",  ["dart_ShortTermTradeReceivable",
-                              "ifrs-full_TradeAndOtherCurrentReceivables"],
-                             ["매출채권", "매출채권및기타채권", "매출채권및기타유동채권"]),
+                              "ifrs-full_TradeAndOtherCurrentReceivables", "ifrs-full_CurrentTradeReceivables"],
+                             ["매출채권", "매출채권및기타채권", "매출채권및기타유동채권", "유동매출채권"]),
     "revenue":       ("ISC", ["ifrs-full_Revenue"], ["매출액", "수익(매출액)", "영업수익"]),
     "op_income":     ("ISC", ["dart_OperatingIncomeLoss"], ["영업이익", "영업이익(손실)"]),
     "net_income":    ("ISC", ["ifrs-full_ProfitLoss"], ["당기순이익", "당기순이익(손실)"]),
@@ -53,7 +54,9 @@ def extract(rows, col="thstrm_amount"):
         except ValueError:
             continue
         by_id.setdefault((sj, r.get("account_id")), v)
-        by_nm.setdefault((sj, (r.get("account_nm") or "").replace(" ", "")), v)
+        # 이름 폴백은 장기 계정을 뺀다 (v2.1 — '매출채권' 라벨의 장기매출채권을 잡은 사례). 계정 코드 일치는 그대로
+        if not any(k in (r.get("account_id") or "") for k in ("LongTerm", "NonCurrent")):
+            by_nm.setdefault((sj, (r.get("account_nm") or "").replace(" ", "")), v)
 
     out = {}
     for key, (grp, ids, nms) in ACCOUNTS.items():

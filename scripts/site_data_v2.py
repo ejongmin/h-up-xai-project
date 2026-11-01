@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from hup import config, dataset, explain, features, model, pipeline
 
-assert config.VERSION == "v2"
+assert config.VERSION.startswith("v2")
 b = joblib.load(config.PROCESSED / "v2_final_model.joblib")
 sel = json.loads((config.RESULTS / "selection" / "선택결과.json").read_text())
 ev_res = json.loads((config.RESULTS / "final" / "평가결과.json").read_text())
